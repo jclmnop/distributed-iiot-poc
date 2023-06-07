@@ -4,6 +4,7 @@ mod config;
 mod nats;
 mod sensor;
 
+use futures::StreamExt;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -14,10 +15,7 @@ use tracing::{debug, error, instrument};
 use uuid::Uuid;
 use wasmbus_rpc::core::HostData;
 use wasmbus_rpc::{core::LinkDefinition, provider::prelude::*};
-use wasmcloud_interface_polling::{
-    AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriberSender,
-    Polling, PollingReceiver, RemovePollTargetRequest, RemovePollTargetResponse,
-};
+use wasmcloud_interface_polling::{AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriberSender, Polling, PollingReceiver, RemovePollTargetRequest, RemovePollTargetResponse, PollSubscriber, PollingError};
 
 use crate::nats::{ConnectionConfig, HeartbeatRx, HeartbeatTx, NatsClient, NatsClientBundle};
 use crate::sensor::{PollInterval, Sensor};
@@ -234,24 +232,99 @@ impl NatsSensorPollingProvider {
                     .collect::<Vec<Sensor>>()
             };
 
-            // TODO: create stream that does the following:
-            //  - gets poll and read topics
-            //  - subscribes to read topic
-            //  - publishes to poll topic
-            //  - waits with ~500ms(?) timeout for "reply"
-            //  - COMM_ERROR if no response, json! with sensor id, name, location, timestamp otherwise
-
-
             // TODO: handle the collapse of the spacetime continuum
             let timestamp = std::time::SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .expect("If time has gone backwards then we have bigger problems than this error.")
                 .as_secs();
+
+            let readings = futures::stream::iter(sensors)
+                .map(|s| async { Self::get_sensor_reading(s, &client, timestamp).await })
+                .buffered(20)
+                .collect::<Vec<Vec<u8>>>()
+                .await;
+
+            Self::send_readings(readings, &ld).await;
         }
     }
 
-    async fn poll(&self, actor_name: String) {
-        todo!()
+    async fn get_sensor_reading(sensor: Sensor, client: &NatsClient, timestamp: u64) -> Vec<u8> {
+        let reading: String = match Self::poll_sensor(sensor.clone(), client).await {
+            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or("COMM_ERROR".to_string()),
+            None => "COMM_ERROR".to_string()
+        };
+
+        // TODO: add value_type field which desers to an enum, to handle floats/ints etc without needing
+        //       to convert to a string
+        let data = serde_json::json!({
+            "sensor_id": sensor.id,
+            "alias": sensor.alias,
+            "location": sensor.location,
+            "timestamp": timestamp,
+            "value": reading,
+        });
+
+        serde_json::to_vec(&data).unwrap_or_else(|e| {
+            error!("Failed to serialise: \n{data:?}\ndue to error: {e:?}");
+            e.to_string().into_bytes()
+        })
+    }
+
+    async fn poll_sensor(sensor: Sensor, client: &NatsClient) -> Option<Vec<u8>> {
+        const TIMEOUT_MS: u64 = 500;
+        let poll_topic = sensor.poll_topic.to_owned();
+        let read_topic = sensor.read_topic.to_owned();
+        let mut subscriber = match client.subscribe(read_topic.to_owned()).await {
+            Ok(s) => s,
+            Err(e) => {
+                error!("Error subscribing to poll response for topic {read_topic}: {e:?}");
+                return None;
+            }
+        };
+
+        if let Err(e) = subscriber.unsubscribe_after(1).await {
+            error!("Error unsubscribing from read topic: {e:?}");
+            return None;
+        }
+        if let Err(e) = client.publish(poll_topic, "poll".into()).await {
+            error!("Error polling sensor: {e:?}");
+            return None;
+        }
+
+        tokio::time::timeout(Duration::from_millis(TIMEOUT_MS), async move {
+            if let Some(message) = subscriber.next().await {
+                Some(message.payload.to_vec())
+            } else {
+                None
+            }
+        })
+        .await
+        .unwrap_or(None)
+    }
+
+    async fn send_readings(readings: Vec<Vec<u8>>, ld: &LinkDefinition) {
+        // TODO: proper error handling
+        let poll_result = match serde_json::to_vec(&readings).map_err(|e| RpcError::Ser(e.to_string())) {
+            Ok(blob) => PollResult {
+                data: Some(blob),
+                error: None,
+            },
+            Err(e) => PollResult {
+                data: None,
+                error: Some(PollingError {
+                    description: Some(e.to_string()),
+                    error_type: "BLOB_SER".to_string(),
+                })
+            }
+        };
+
+        let actor = PollSubscriberSender::for_actor(ld);
+        if let Err(e) = actor.poll_rx(&Context::default(), &poll_result).await {
+            error!(
+                error = %e,
+                "Unable to send subscription"
+            );
+        };
     }
 
     async fn connect(
