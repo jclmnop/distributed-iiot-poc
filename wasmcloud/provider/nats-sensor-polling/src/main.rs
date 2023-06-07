@@ -388,13 +388,24 @@ impl ProviderHandler for NatsSensorPollingProvider {
     #[instrument(level = "info", skip(self))]
     async fn delete_link(&self, actor_id: &str) {
         debug!("deleting link for actor {}", actor_id);
+        let mut write_actors = self.actors.write().await;
 
-        todo!()
+        if let Some(actor) = write_actors.remove(actor_id) {
+            debug!(
+                "Closing [{}] NATS heartbeat subscriptions for actor [{}]...",
+                &actor.client.heartbeat_sub_handles.len(),
+                actor_id,
+            );
+        }
+
+        debug!("Finished processing delet link for actor [{actor_id}]");
     }
 
     /// Handle shutdown request with any cleanup necessary
     async fn shutdown(&self) -> Result<(), Infallible> {
-        todo!();
+        let mut write_actors = self.actors.write().await;
+        write_actors.clear();
+        Ok(())
     }
 }
 
