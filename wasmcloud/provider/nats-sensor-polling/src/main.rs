@@ -19,6 +19,7 @@ use wasmbus_rpc::core::HostData;
 use wasmbus_rpc::{core::LinkDefinition, provider::prelude::*};
 use wasmcloud_interface_polling::{AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriberSender, Polling, PollingReceiver, RemovePollTargetRequest, RemovePollTargetResponse, PollSubscriber, PollingError};
 use regex::Regex;
+use actor_interfaces::LogEvent;
 
 use crate::nats::{ConnectionConfig, HeartbeatRx, HeartbeatTx, NatsClient, NatsClientBundle};
 use crate::sensor::{PollInterval, Sensor};
@@ -257,25 +258,43 @@ impl NatsSensorPollingProvider {
     }
 
     async fn get_sensor_reading(sensor: Sensor, client: &NatsClient, timestamp: u64) -> Vec<u8> {
+        let mut status = "SUCCESS";
         let reading: String = match Self::poll_sensor(sensor.clone(), client).await {
-            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or("VALUE_ERROR".to_string()),
-            None => "COMM_ERROR".to_string()
+            Some(bytes) => match serde_json::from_slice(&bytes) {
+                Ok(reading) => reading,
+                Err(e) => {
+                    status = "VALUE_ERROR";
+                    e.to_string()
+                }
+            },
+            None => {
+                status = "COMM_ERROR";
+                "N/A".to_string()
+            }
         };
 
         // TODO: - add value_type field which desers to an enum, to handle floats/ints etc without needing
         //         to convert to a string
-        //       - use timestamp from sensor
-        let data = serde_json::json!({
-            "sensor_id": sensor.id,
-            "alias": sensor.alias,
-            "location": sensor.location,
-            "timestamp": timestamp,
-            "value": reading,
-        });
+        //       - use timestamp from sensor after configuring RTC on pico-w
+        let source = format!("{}-{}-{}", sensor.location, sensor.alias, sensor.id);
+        let data = LogEvent {
+            timestamp: Some(timestamp.to_string()),
+            message: reading,
+            source: Some(source.clone()),
+            status: Some(status.to_string()),
+            action: Some("SENSOR_READING".to_string()),
+            ..Default::default()
+        };
 
         serde_json::to_vec(&data).unwrap_or_else(|e| {
             error!("Failed to serialise: \n{data:?}\ndue to error: {e:?}");
-            e.to_string().into_bytes()
+            serde_json::json!({
+                "timestamp": timestamp,
+                "message": e.to_string(),
+                "source": source,
+                "status": "SERDE_ERROR",
+                "action": "SENSOR_READING"
+            }).to_string().into_bytes()
         })
     }
 

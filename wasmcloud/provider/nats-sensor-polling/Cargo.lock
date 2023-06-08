@@ -13,6 +13,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "actor-interfaces"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_bytes",
+ "wasmbus-rpc",
+ "weld-codegen",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1198,6 +1209,7 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 name = "nats-sensor-polling"
 version = "0.1.0"
 dependencies = [
+ "actor-interfaces",
  "anyhow",
  "async-nats",
  "async-trait",
