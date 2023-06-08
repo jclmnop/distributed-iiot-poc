@@ -11,7 +11,6 @@ struct SensorReaderActor {}
 
 #[async_trait]
 impl PollSubscriber for SensorReaderActor {
-    // TODO: deserialize reading/result
     async fn poll_rx(&self, ctx: &Context, poll_result: &PollResult) -> RpcResult<()> {
         info!("sensor_reader: processing received poll result");
         if let Some(poll_error) = poll_result.error.clone() {

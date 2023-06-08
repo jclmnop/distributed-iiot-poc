@@ -11,7 +11,11 @@ name = "event_logger"
 [dependencies]
 futures = "0.3"
 wasmbus-rpc = "0.13"
-wasmcloud-interface-httpserver = "0.10"
+wasmcloud-interface-logging = "0.9.0"
+wasmcloud-interface-messaging = "0.9.0"
+actor-interfaces = { path = "../interface/rust" }
+serde_json = "1.0.96"
+serde = { version = "1.0", features = ["derive"] }
 
 [profile.release]
 # Optimize for small code size
