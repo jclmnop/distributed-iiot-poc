@@ -1,5 +1,7 @@
 //! Implementation for wasmcloud:messaging
-//!
+//! At the moment, I've only included functionality necessary for my PoC, but in the future I'll
+//! probably change the architecture of my PoC entirely and the functionality of this provider will
+//! be dramatically simplified, with more of the business logic taking place inside actors instead.
 mod config;
 mod nats;
 mod sensor;
@@ -16,6 +18,7 @@ use uuid::Uuid;
 use wasmbus_rpc::core::HostData;
 use wasmbus_rpc::{core::LinkDefinition, provider::prelude::*};
 use wasmcloud_interface_polling::{AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriberSender, Polling, PollingReceiver, RemovePollTargetRequest, RemovePollTargetResponse, PollSubscriber, PollingError};
+use regex::Regex;
 
 use crate::nats::{ConnectionConfig, HeartbeatRx, HeartbeatTx, NatsClient, NatsClientBundle};
 use crate::sensor::{PollInterval, Sensor};
@@ -36,7 +39,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // The heartbeat_sender needs to be stored here in case extra heartbeat subscriptions
-// are added later.
+// are added later. sensors and schedule need to be stored here so they can be cleared
+// when ActorState is dropped, which ensures any scheduled polling tasks are aborted
 struct ActorState {
     client: NatsClientBundle,
     heartbeat_sender: HeartbeatTx,
@@ -92,7 +96,7 @@ impl NatsSensorPollingProvider {
     }
 
     /// Begin running tasks in the background, listening for heartbeats, updating discovered sensors,
-    /// and regularly polling sensors so results can be sent to the actor given in the ld.
+    /// and regularly polling sensors so results can be sent to the actors given in the ld.
     ///
     /// Returns the handles for these background tasks.
     #[instrument(level = "info", skip_all, fields(actor_id = %ld.actor_id))]
@@ -139,13 +143,17 @@ impl NatsSensorPollingProvider {
             } else {
                 break;
             };
-            let sensor_info = match serde_json::from_slice::<Sensor>(&msg.payload) {
+            let mut sensor_info = match serde_json::from_slice::<Sensor>(&msg.payload) {
                 Ok(sensor_info) => sensor_info,
                 Err(e) => {
                     error!("Failed to deserialize sensor info: {e:?}");
                     continue;
                 }
             };
+
+            sensor_info.poll_topic = mqtt_to_nats(sensor_info.poll_topic);
+            sensor_info.read_topic = mqtt_to_nats(sensor_info.read_topic);
+            sensor_info.disconnect_topic = mqtt_to_nats(sensor_info.disconnect_topic);
 
             let read_sensors = sensors.read().await;
             if !read_sensors.contains_key(&sensor_info.id) {
@@ -250,12 +258,13 @@ impl NatsSensorPollingProvider {
 
     async fn get_sensor_reading(sensor: Sensor, client: &NatsClient, timestamp: u64) -> Vec<u8> {
         let reading: String = match Self::poll_sensor(sensor.clone(), client).await {
-            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or("COMM_ERROR".to_string()),
+            Some(bytes) => serde_json::from_slice(&bytes).unwrap_or("VALUE_ERROR".to_string()),
             None => "COMM_ERROR".to_string()
         };
 
-        // TODO: add value_type field which desers to an enum, to handle floats/ints etc without needing
-        //       to convert to a string
+        // TODO: - add value_type field which desers to an enum, to handle floats/ints etc without needing
+        //         to convert to a string
+        //       - use timestamp from sensor
         let data = serde_json::json!({
             "sensor_id": sensor.id,
             "alias": sensor.alias,
@@ -347,16 +356,16 @@ impl NatsSensorPollingProvider {
 }
 
 /// Handle provider control commands
-/// put_link (new actor link command), del_link (remove link command), and shutdown
+/// put_link (new actors link command), del_link (remove link command), and shutdown
 #[async_trait]
 impl ProviderHandler for NatsSensorPollingProvider {
     /// Provider should perform any operations needed for a new link,
-    /// including setting up per-actor resources, and checking authorization.
+    /// including setting up per-actors resources, and checking authorization.
     /// If the link is allowed, return true, otherwise return false to deny the link.
     #[instrument(level = "info", skip(self, ld), fields(actor_id = %ld.actor_id))]
     async fn put_link(&self, ld: &LinkDefinition) -> RpcResult<bool> {
         let (heartbeat_tx, heartbeat_rx) = unbounded_channel();
-        debug!("putting link for actor {:?}", ld);
+        debug!("putting link for actors {:?}", ld);
         let config = if ld.values.is_empty() {
             self.default_config.clone()
         } else {
@@ -387,18 +396,18 @@ impl ProviderHandler for NatsSensorPollingProvider {
     /// Handle notification that a link is dropped: close the connection
     #[instrument(level = "info", skip(self))]
     async fn delete_link(&self, actor_id: &str) {
-        debug!("deleting link for actor {}", actor_id);
+        debug!("deleting link for actors {}", actor_id);
         let mut write_actors = self.actors.write().await;
 
         if let Some(actor) = write_actors.remove(actor_id) {
             debug!(
-                "Closing [{}] NATS heartbeat subscriptions for actor [{}]...",
+                "Closing [{}] NATS heartbeat subscriptions for actors [{}]...",
                 &actor.client.heartbeat_sub_handles.len(),
                 actor_id,
             );
         }
 
-        debug!("Finished processing delet link for actor [{actor_id}]");
+        debug!("Finished processing delet link for actors [{actor_id}]");
     }
 
     /// Handle shutdown request with any cleanup necessary
@@ -407,6 +416,24 @@ impl ProviderHandler for NatsSensorPollingProvider {
         write_actors.clear();
         Ok(())
     }
+}
+
+// TODO: make this function return Result<String>
+/// Convert an MQTT topic to a NATS string
+fn mqtt_to_nats(input_string: String) -> String {
+    let re_doubleslash_start = Regex::new(r"^//").unwrap();
+    let re_singleslash_start = Regex::new(r"^/").unwrap();
+    let re_singleslash_end = Regex::new(r"/$").unwrap();
+    let re_doubleslash_separator = Regex::new(r"[^/]//[^/]").unwrap();
+    let re_singleslash_separator = Regex::new(r"[^/]/[^/]").unwrap();
+
+    let output_string = re_doubleslash_start.replace(&input_string, "/./.");
+    let output_string = re_singleslash_start.replace(&output_string, "/.");
+    let output_string = re_singleslash_end.replace(&output_string, "./");
+    let output_string = re_doubleslash_separator.replace_all(&output_string, "./.");
+    let output_string =  re_singleslash_separator.replace_all(&output_string, ".");
+
+    output_string.to_string()
 }
 
 #[async_trait]

@@ -1205,6 +1205,7 @@ dependencies = [
  "futures",
  "macaddr",
  "once_cell",
+ "regex",
  "serde",
  "serde_bytes",
  "serde_json",
