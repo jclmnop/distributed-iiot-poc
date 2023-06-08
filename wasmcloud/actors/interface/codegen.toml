@@ -9,7 +9,11 @@
 # The namespaces(s) that will be generated for this library are indicated
 # in the per-language file settings later in this file.
 [[models]]
-path = "common.smithy"
+path = "."
+files = [
+#    "common.smithy",
+    "pangea_api.smithy"
+]
 
 [[models]]
 # Location of dependencies may be either a path to a directory, or a url prefix
@@ -62,6 +66,10 @@ output_dir = "rust"
 # a rust source file below for each namespace,
 # and importing each of them into src/lib.rs
 
+#[[rust.files]]
+#path = "src/common.rs"
+#namespace = "jclmnop.iiot_poc.interface.common"
+
 [[rust.files]]
-path = "src/common.rs"
-namespace = "jclmnop.iiot_poc.interface.common"
+path = "src/pangea_api.rs"
+namespace = "jclmnop.iiot_poc.interface.pangea_api"
