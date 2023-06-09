@@ -3,7 +3,7 @@ use wasmcloud_interface_polling::{PollResult, PollSubscriber, PollSubscriberRece
 use wasmcloud_interface_logging::{error, debug, info};
 use actor_interfaces::{PangeaApiSender, LogEvent, PangeaApi};
 
-const PANGEA_API_ACTOR: &str = "pangea_api";
+const PANGEA_API_ACTOR: &str = "iiot/pangea_api";
 
 #[derive(Debug, Default, Actor, HealthResponder)]
 #[services(Actor, PollSubscriber)]
@@ -17,10 +17,10 @@ impl PollSubscriber for SensorReaderActor {
             error!(
                 "Error polling sensors, \n\tERROR_TYPE: {}\n\tDESCRIPTION: {}\n",
                 poll_error.error_type,
-                poll_error.description.unwrap_or("n/a")
+                poll_error.description.unwrap_or("n/a".to_string())
             );
         } else {
-            if let Some(poll_readings) = data {
+            if let Some(poll_readings) = poll_result.data.clone() {
                 match serde_json::from_slice::<Vec<LogEvent>>(&poll_readings) {
                     Ok(poll_readings) => {
                         info!("Sending readings to event log");
@@ -29,11 +29,12 @@ impl PollSubscriber for SensorReaderActor {
                         if write_result.success {
                             info!("Successfully wrote readings to audit log");
                         } else {
-                            error!("Error writing to audit log: {}", write_result.reason.unwrap_or(""))
+                            error!("Error writing to audit log: {}", write_result.reason.unwrap_or("".to_string()))
                         }
                     }
                     Err(e) => {
-                        error!("Failed to deserialize sensor readings: {e}");
+                        // let poll_readings = serde_json::f;
+                        error!("Failed to deserialize sensor readings: {e:?}\n{poll_readings:?}");
                     }
                 }
             } else {

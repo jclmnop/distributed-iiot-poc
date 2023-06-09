@@ -4,4 +4,4 @@ type = "actor"
 version = "0.1.0"
 
 [actor]
-claims = ["wasmcloud:polling"]
+claims = ["wasmcloud:polling", "wasmcloud:builtin:logging"]
