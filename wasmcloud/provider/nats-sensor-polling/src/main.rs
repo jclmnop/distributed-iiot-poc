@@ -6,7 +6,9 @@ mod config;
 mod nats;
 mod sensor;
 
+use actor_interfaces::LogEvent;
 use futures::StreamExt;
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -17,9 +19,11 @@ use tracing::{debug, error, instrument};
 use uuid::Uuid;
 use wasmbus_rpc::core::HostData;
 use wasmbus_rpc::{core::LinkDefinition, provider::prelude::*};
-use wasmcloud_interface_polling::{AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriberSender, Polling, PollingReceiver, RemovePollTargetRequest, RemovePollTargetResponse, PollSubscriber, PollingError};
-use regex::Regex;
-use actor_interfaces::LogEvent;
+use wasmcloud_interface_polling::{
+    AddPollTargetRequest, AddPollTargetResponse, PollRequest, PollResult, PollSubscriber,
+    PollSubscriberSender, Polling, PollingError, PollingReceiver, RemovePollTargetRequest,
+    RemovePollTargetResponse,
+};
 
 use crate::nats::{ConnectionConfig, HeartbeatRx, HeartbeatTx, NatsClient, NatsClientBundle};
 use crate::sensor::{PollInterval, Sensor};
@@ -294,7 +298,9 @@ impl NatsSensorPollingProvider {
                 "source": source,
                 "status": "SERDE_ERROR",
                 "action": "SENSOR_READING"
-            }).to_string().into_bytes()
+            })
+            .to_string()
+            .into_bytes()
         })
     }
 
@@ -332,19 +338,20 @@ impl NatsSensorPollingProvider {
 
     async fn send_readings(readings: Vec<Vec<u8>>, ld: &LinkDefinition) {
         // TODO: proper error handling
-        let poll_result = match serde_json::to_vec(&readings).map_err(|e| RpcError::Ser(e.to_string())) {
-            Ok(blob) => PollResult {
-                data: Some(blob),
-                error: None,
-            },
-            Err(e) => PollResult {
-                data: None,
-                error: Some(PollingError {
-                    description: Some(e.to_string()),
-                    error_type: "BLOB_SER".to_string(),
-                })
-            }
-        };
+        let poll_result =
+            match serde_json::to_vec(&readings).map_err(|e| RpcError::Ser(e.to_string())) {
+                Ok(blob) => PollResult {
+                    data: Some(blob),
+                    error: None,
+                },
+                Err(e) => PollResult {
+                    data: None,
+                    error: Some(PollingError {
+                        description: Some(e.to_string()),
+                        error_type: "BLOB_SER".to_string(),
+                    }),
+                },
+            };
 
         let actor = PollSubscriberSender::for_actor(ld);
         if let Err(e) = actor.poll_rx(&Context::default(), &poll_result).await {
@@ -438,21 +445,38 @@ impl ProviderHandler for NatsSensorPollingProvider {
 }
 
 // TODO: make this function return Result<String>
-/// Convert an MQTT topic to a NATS string
+/// Convert an MQTT topic to a NATS subject
 fn mqtt_to_nats(input_string: String) -> String {
+    // TODO: lazy_static
     let re_doubleslash_start = Regex::new(r"^//").unwrap();
     let re_singleslash_start = Regex::new(r"^/").unwrap();
     let re_singleslash_end = Regex::new(r"/$").unwrap();
-    let re_doubleslash_separator = Regex::new(r"[^/]//[^/]").unwrap();
-    let re_singleslash_separator = Regex::new(r"[^/]/[^/]").unwrap();
 
-    let output_string = re_doubleslash_start.replace(&input_string, "/./.");
-    let output_string = re_singleslash_start.replace(&output_string, "/.");
-    let output_string = re_singleslash_end.replace(&output_string, "./");
-    let output_string = re_doubleslash_separator.replace_all(&output_string, "./.");
-    let output_string =  re_singleslash_separator.replace_all(&output_string, ".");
+    let re_doubleslash_separator = Regex::new(r"[^/. ](?P<separator>//)[^/. ]").unwrap();
+    let re_singleslash_separator = Regex::new(r"[^/. ](?P<separator>/)[^/. ]").unwrap();
 
-    output_string.to_string()
+    let output_string = input_string.trim().to_string();
+    let output_string =  if re_doubleslash_start.is_match(&output_string) {
+        re_doubleslash_start.replace(&output_string, "/./.")
+    } else {
+        re_singleslash_start.replace(&output_string, "/.")
+    };
+    let mut output_string = re_singleslash_end.replace(&output_string, "./").to_string();
+
+    if let Some(caps) = re_doubleslash_separator.captures(&output_string) {
+        if let Some(seperator) = caps.name("separator") {
+            let range = seperator.range();
+            output_string.replace_range(range, "./.");
+        }
+    };
+    if let Some(caps) = re_singleslash_separator.captures(&output_string) {
+        if let Some(seperator) = caps.name("separator") {
+            let range = seperator.range();
+            output_string.replace_range(range, ".");
+        }
+    };
+
+    output_string
 }
 
 #[async_trait]
@@ -493,3 +517,31 @@ impl Polling for NatsSensorPollingProvider {
 //         Err(RpcError::NotImplemented)
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mqtt_to_nats() {
+        let test_cases = vec![
+            ("foo/bar", "foo.bar"),
+            ("/foo/bar", "/.foo.bar"),
+            ("foo/bar/", "foo.bar./"),
+            ("foo//bar", "foo./.bar"),
+            ("foo//bar/", "foo./.bar./"),
+            ("//foo//bar", "/./.foo./.bar"),
+            ("//foo//bar/", "/./.foo./.bar./"),
+            ("/foo//bar", "/.foo./.bar"),
+            ("/foo//bar/", "/.foo./.bar./"),
+            ("/foo/bar/", "/.foo.bar./"),
+        ];
+
+        for (input, expected) in test_cases {
+            let output = mqtt_to_nats(input.to_string());
+            assert_eq!(output, expected.to_string());
+        }
+    }
+
+
+}

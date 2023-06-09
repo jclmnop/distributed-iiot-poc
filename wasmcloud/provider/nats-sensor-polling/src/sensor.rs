@@ -29,3 +29,73 @@ pub struct Sensor {
 
 // TODO: unit tests, mostly so i can make sure i use the correct format
 //       in the micropython code for the sensor
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_sensor_deserialize() {
+        let sensor_json = r#"
+            {
+                "alias": "test-sensor",
+                "id": "a3b3c3d3-e3f3-a3b3-c3d3-e3f3a3b3c3d3",
+                "poll_interval": 1000,
+                "poll_topic": "test-sensor/poll",
+                "read_topic": "test-sensor/read",
+                "disconnect_topic": "test-sensor/disconnect",
+                "ip_addr": "192.168.1.1",
+                "mac_addr": [0, 1, 2, 3, 4, 255],
+                "location": "test-location"
+           }
+           "#;
+        let sensor: Sensor = serde_json::from_str(sensor_json).unwrap();
+        assert_eq!(sensor.alias, "test-sensor");
+        assert_eq!(
+            sensor.id,
+            Uuid::parse_str("a3b3c3d3-e3f3-a3b3-c3d3-e3f3a3b3c3d3").unwrap()
+        );
+        assert_eq!(sensor.poll_interval, 1000);
+        assert_eq!(sensor.poll_topic, "test-sensor/poll");
+        assert_eq!(sensor.read_topic, "test-sensor/read");
+        assert_eq!(sensor.disconnect_topic, "test-sensor/disconnect");
+        assert_eq!(sensor.ip_addr, IpAddr::from([192, 168, 1, 1]));
+        assert_eq!(sensor.mac_addr, MacAddr6::new(0, 1, 2, 3, 4, 0xff));
+        assert_eq!(sensor.location, "test-location");
+    }
+
+    #[test]
+    fn test_sensor_serialize() {
+        let sensor = Sensor {
+            alias: "test-sensor".to_string(),
+            id: Uuid::parse_str("a3b3c3d3-e3f3-a3b3-c3d3-e3f3a3b3c3d3").unwrap(),
+            poll_interval: 1000,
+            poll_topic: "test-sensor/poll".to_string(),
+            read_topic: "test-sensor/read".to_string(),
+            disconnect_topic: "test-sensor/disconnect".to_string(),
+            ip_addr: IpAddr::from([192, 168, 1, 1]),
+            mac_addr: MacAddr6::new(0, 1, 2, 3, 4, 255),
+            location: "test-location".to_string(),
+        };
+        let sensor_json = serde_json::to_string_pretty(&sensor).unwrap();
+        let expected_json = r#"{
+  "alias": "test-sensor",
+  "id": "a3b3c3d3-e3f3-a3b3-c3d3-e3f3a3b3c3d3",
+  "poll_interval": 1000,
+  "poll_topic": "test-sensor/poll",
+  "read_topic": "test-sensor/read",
+  "disconnect_topic": "test-sensor/disconnect",
+  "ip_addr": "192.168.1.1",
+  "mac_addr": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    255
+  ],
+  "location": "test-location"
+}"#;
+        println!("{}", sensor_json);
+        assert_eq!(sensor_json, expected_json);
+    }
+}
