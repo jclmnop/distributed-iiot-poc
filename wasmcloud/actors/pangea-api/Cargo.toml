@@ -11,7 +11,15 @@ name = "pangea_api"
 [dependencies]
 futures = "0.3"
 wasmbus-rpc = "0.13"
-wasmcloud-interface-httpserver = "0.10"
+wasmcloud-interface-logging = "0.9.0"
+wasmcloud-interface-httpclient = "0.9.0"
+wasmcloud-interface-messaging = "0.9.0" # TODO: rm after testing
+wasmcloud-interface-keyvalue = "0.10.0"
+actor-interfaces = { path = "../interface/rust" }
+serde_json = "1.0.96"
+serde = { version = "1.0", features = ["derive"] }
+once_cell = "1.18.0"
+tokio = { version = "1.28.2", default-features = false, features = ["sync"] }
 
 [profile.release]
 # Optimize for small code size

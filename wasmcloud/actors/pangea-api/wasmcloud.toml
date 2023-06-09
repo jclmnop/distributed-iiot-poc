@@ -4,4 +4,9 @@ type = "actor"
 version = "0.1.0"
 
 [actor]
-claims = ["wasmcloud:httpclient"]
+claims = [
+    "wasmcloud:httpclient",
+    "wasmcloud:builtin:logging",
+    "wasmcloud:keyvalue"
+]
+call_alias = "iiot/pangea_api"
