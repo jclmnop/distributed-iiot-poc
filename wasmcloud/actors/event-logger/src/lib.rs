@@ -1,7 +1,7 @@
 use wasmbus_rpc::actor::prelude::*;
 use wasmcloud_interface_logging::{error, info};
 use wasmcloud_interface_messaging::{MessageSubscriber, SubMessage, MessageSubscriberReceiver};
-use actor_interfaces::{LogEvent, PangeaApiSender};
+use actor_interfaces::{LogEvent, PangeaApiSender, PangeaApi};
 
 const PANGEA_API_ACTOR: &str = "pangea_api";
 
@@ -20,7 +20,7 @@ impl MessageSubscriber for EventLoggerActor {
                 if write_result.success {
                     info!("Successfully wrote event(s) to audit log");
                 } else {
-                    error!("Error writing event to audit log: {}", write_result.reason.unwrap_or(""))
+                    error!("Error writing event to audit log: {}", write_result.reason.unwrap_or("".to_string()))
                 }
             }
             Err(e) => {
