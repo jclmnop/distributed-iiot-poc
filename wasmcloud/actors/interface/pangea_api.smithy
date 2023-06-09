@@ -21,7 +21,7 @@ operation WriteAuditLog {
 }
 
 operation SearchAuditLog {
-    input: SearchParams,
+    input: String, // TODO: struct for search params
     output: SearchResponse
 }
 

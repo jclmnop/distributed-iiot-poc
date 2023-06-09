@@ -1190,10 +1190,10 @@ pub fn decode_write_result(
 #[async_trait]
 pub trait PangeaApi {
     async fn write_audit_log(&self, ctx: &Context, arg: &LogEvents) -> RpcResult<WriteResult>;
-    async fn search_audit_log(
+    async fn search_audit_log<TS: ToString + ?Sized + std::marker::Sync>(
         &self,
         ctx: &Context,
-        arg: &SearchParams,
+        arg: &TS,
     ) -> RpcResult<SearchResponse>;
 }
 
@@ -1213,8 +1213,8 @@ pub trait PangeaApiReceiver: MessageDispatch + PangeaApi {
                 Ok(buf)
             }
             "SearchAuditLog" => {
-                let value: SearchParams = wasmbus_rpc::common::deserialize(&message.arg)
-                    .map_err(|e| RpcError::Deser(format!("'SearchParams': {}", e)))?;
+                let value: String = wasmbus_rpc::common::deserialize(&message.arg)
+                    .map_err(|e| RpcError::Deser(format!("'String': {}", e)))?;
 
                 let resp = PangeaApi::search_audit_log(self, ctx, &value).await?;
                 let buf = wasmbus_rpc::common::serialize(&resp)?;
@@ -1290,12 +1290,12 @@ impl<T: Transport + std::marker::Sync + std::marker::Send> PangeaApi for PangeaA
         Ok(value)
     }
     #[allow(unused)]
-    async fn search_audit_log(
+    async fn search_audit_log<TS: ToString + ?Sized + std::marker::Sync>(
         &self,
         ctx: &Context,
-        arg: &SearchParams,
+        arg: &TS,
     ) -> RpcResult<SearchResponse> {
-        let buf = wasmbus_rpc::common::serialize(arg)?;
+        let buf = wasmbus_rpc::common::serialize(&arg.to_string())?;
 
         let resp = self
             .transport
