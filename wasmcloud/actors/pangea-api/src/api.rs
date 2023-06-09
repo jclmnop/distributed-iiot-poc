@@ -1,10 +1,9 @@
+use actor_interfaces::LogEvent;
 use once_cell::sync::Lazy;
 use wasmbus_rpc::actor::prelude::Context;
 use wasmbus_rpc::error::{RpcError, RpcResult};
-use wasmcloud_interface_logging::{error, info};
-use wasmcloud_interface_keyvalue::{KeyValue, KeyValueSender};
 use wasmcloud_interface_httpclient::{HeaderMap, HeaderValues, HttpRequest};
-use actor_interfaces::LogEvent;
+use wasmcloud_interface_keyvalue::{KeyValue, KeyValueSender};
 
 const API_KEY: &str = "PANGEA_API_KEY";
 const DOMAIN: &str = "aws.eu.pangea.cloud";
@@ -21,9 +20,15 @@ static AUDIT_SEARCH_ENDPOINT: Lazy<String> = Lazy::new(|| {
     s
 });
 
-pub fn build_log_request(context: &Context, api_token: &String, event: LogEvent) -> RpcResult<HttpRequest> {
+pub fn build_log_request(
+    context: &Context,
+    api_token: &String,
+    mut event: LogEvent,
+) -> RpcResult<HttpRequest> {
+    event.timestamp = timestamp_to_datetime(event.timestamp);
     let headers = headers(api_token);
-    let body = serde_json::to_vec(&event).map_err(|e| RpcError::Ser(e.to_string()))?;
+    let body = serde_json::json!({ "event": event });
+    let body = serde_json::to_vec(&body).map_err(|e| RpcError::Ser(e.to_string()))?;
     Ok(HttpRequest {
         method: "POST".to_string(),
         url: AUDIT_LOG_ENDPOINT.to_string(),
@@ -33,7 +38,11 @@ pub fn build_log_request(context: &Context, api_token: &String, event: LogEvent)
 }
 
 //TODO: use a proper search query type
-pub fn build_search_request(context: &Context, api_token: &String, query: String) -> RpcResult<HttpRequest> {
+pub fn build_search_request(
+    context: &Context,
+    api_token: &String,
+    query: String,
+) -> RpcResult<HttpRequest> {
     let headers = headers(api_token);
     let body = serde_json::to_vec(&query).map_err(|e| RpcError::Ser(e.to_string()))?;
     Ok(HttpRequest {
@@ -46,8 +55,14 @@ pub fn build_search_request(context: &Context, api_token: &String, query: String
 
 fn headers(api_token: &String) -> HeaderMap {
     let headers = HeaderMap::from([
-        ("Content-Type".to_string(), vec!["application/json".to_string()]),
-        ("Authorization".to_string(), vec![format!("Bearer {api_token}")]),
+        (
+            "Content-Type".to_string(),
+            vec!["application/json".to_string()],
+        ),
+        (
+            "Authorization".to_string(),
+            vec![format!("Bearer {api_token}")],
+        ),
     ]);
     headers
 }
@@ -56,4 +71,16 @@ pub async fn get_api_token(ctx: &Context) -> RpcResult<String> {
     let kv = KeyValueSender::new();
     let api_token = kv.get(ctx, API_KEY).await?.value;
     Ok(api_token)
+}
+
+fn timestamp_to_datetime(timestamp: Option<String>) -> Option<String> {
+    let timestamp = timestamp?;
+    let timestamp = timestamp.parse::<i64>().ok()?;
+    let dt = chrono::NaiveDateTime::from_timestamp_opt(timestamp, 0);
+    if let Some(dt) = dt {
+        let dt = dt.format("%Y-%m-%dT%H:%M:%S.%fZ").to_string();
+        Some(dt)
+    } else {
+        None
+    }
 }
