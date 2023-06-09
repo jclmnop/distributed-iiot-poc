@@ -254,14 +254,14 @@ impl NatsSensorPollingProvider {
             let readings = futures::stream::iter(sensors)
                 .map(|s| async { Self::get_sensor_reading(s, &client, timestamp).await })
                 .buffered(20)
-                .collect::<Vec<Vec<u8>>>()
+                .collect::<Vec<LogEvent>>()
                 .await;
 
-            Self::send_readings(readings, &ld).await;
+            Self::send_readings(readings, &ld).await
         }
     }
 
-    async fn get_sensor_reading(sensor: Sensor, client: &NatsClient, timestamp: u64) -> Vec<u8> {
+    async fn get_sensor_reading(sensor: Sensor, client: &NatsClient, timestamp: u64) -> LogEvent {
         let mut status = "SUCCESS";
         let reading: String = match Self::poll_sensor(sensor.clone(), client).await {
             Some(bytes) => match serde_json::from_slice(&bytes) {
@@ -281,27 +281,15 @@ impl NatsSensorPollingProvider {
         //         to convert to a string
         //       - use timestamp from sensor after configuring RTC on pico-w
         let source = format!("{}-{}-{}", sensor.location, sensor.alias, sensor.id);
-        let data = LogEvent {
+
+        LogEvent {
             timestamp: Some(timestamp.to_string()),
             message: reading,
             source: Some(source.clone()),
             status: Some(status.to_string()),
             action: Some("SENSOR_READING".to_string()),
             ..Default::default()
-        };
-
-        serde_json::to_vec(&data).unwrap_or_else(|e| {
-            error!("Failed to serialise: \n{data:?}\ndue to error: {e:?}");
-            serde_json::json!({
-                "timestamp": timestamp,
-                "message": e.to_string(),
-                "source": source,
-                "status": "SERDE_ERROR",
-                "action": "SENSOR_READING"
-            })
-            .to_string()
-            .into_bytes()
-        })
+        }
     }
 
     async fn poll_sensor(sensor: Sensor, client: &NatsClient) -> Option<Vec<u8>> {
@@ -336,7 +324,7 @@ impl NatsSensorPollingProvider {
         .unwrap_or(None)
     }
 
-    async fn send_readings(readings: Vec<Vec<u8>>, ld: &LinkDefinition) {
+    async fn send_readings(readings: Vec<LogEvent>, ld: &LinkDefinition) {
         // TODO: proper error handling
         let poll_result =
             match serde_json::to_vec(&readings).map_err(|e| RpcError::Ser(e.to_string())) {
@@ -419,6 +407,7 @@ impl ProviderHandler for NatsSensorPollingProvider {
         Ok(true)
     }
 
+    // TODO: fix this, still polls in background
     /// Handle notification that a link is dropped: close the connection
     #[instrument(level = "info", skip(self))]
     async fn delete_link(&self, actor_id: &str) {
@@ -463,18 +452,23 @@ fn mqtt_to_nats(input_string: String) -> String {
     };
     let mut output_string = re_singleslash_end.replace(&output_string, "./").to_string();
 
-    if let Some(caps) = re_doubleslash_separator.captures(&output_string) {
-        if let Some(seperator) = caps.name("separator") {
-            let range = seperator.range();
+    let temp_string = output_string.clone();
+    let mut caps = re_doubleslash_separator.captures_iter(&temp_string);
+    while let Some(seperator) = caps.next() {
+        if let Some(cap) = seperator.name("separator") {
+            let range = cap.range();
             output_string.replace_range(range, "./.");
         }
-    };
-    if let Some(caps) = re_singleslash_separator.captures(&output_string) {
-        if let Some(seperator) = caps.name("separator") {
-            let range = seperator.range();
+    }
+
+    let temp_string = output_string.clone();
+    let mut caps = re_singleslash_separator.captures_iter(&temp_string);
+    while let Some(seperator) = caps.next() {
+        if let Some(cap) = seperator.name("separator") {
+            let range = cap.range();
             output_string.replace_range(range, ".");
         }
-    };
+    }
 
     output_string
 }
@@ -535,6 +529,7 @@ mod tests {
             ("/foo//bar", "/.foo./.bar"),
             ("/foo//bar/", "/.foo./.bar./"),
             ("/foo/bar/", "/.foo.bar./"),
+            ("picow/temp_01/poll", "picow.temp_01.poll")
         ];
 
         for (input, expected) in test_cases {
