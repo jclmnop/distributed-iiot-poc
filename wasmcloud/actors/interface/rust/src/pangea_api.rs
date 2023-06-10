@@ -849,6 +849,125 @@ pub fn decode_log_events(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEv
     Ok(__result)
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PageParams {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u64>,
+}
+
+// Encode PageParams as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_page_params<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &PageParams,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(3)?;
+    e.str("id")?;
+    e.str(&val.id)?;
+    if let Some(val) = val.limit.as_ref() {
+        e.str("limit")?;
+        e.u64(*val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.offset.as_ref() {
+        e.str("offset")?;
+        e.u64(*val)?;
+    } else {
+        e.null()?;
+    }
+    Ok(())
+}
+
+// Decode PageParams from cbor input stream
+#[doc(hidden)]
+pub fn decode_page_params(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<PageParams, RpcError> {
+    let __result = {
+        let mut id: Option<String> = None;
+        let mut limit: Option<Option<u64>> = Some(None);
+        let mut offset: Option<Option<u64>> = Some(None);
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct PageParams, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => id = Some(d.str()?.to_string()),
+                    1 => {
+                        limit = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    2 => {
+                        offset = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "id" => id = Some(d.str()?.to_string()),
+                    "limit" => {
+                        limit = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    "offset" => {
+                        offset = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    _ => d.skip()?,
+                }
+            }
+        }
+        PageParams {
+            id: if let Some(__x) = id {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field PageParams.id (#0)".to_string(),
+                ));
+            },
+            limit: limit.unwrap(),
+            offset: offset.unwrap(),
+        }
+    };
+    Ok(__result)
+}
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Root {
     pub consistency_proof: Strings,
     #[serde(default)]

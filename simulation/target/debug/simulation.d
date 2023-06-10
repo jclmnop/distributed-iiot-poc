@@ -1,0 +1,1 @@
+/Users/jclmnop/programming/rust/pangea_hackathon/simulation/target/debug/simulation: /Users/jclmnop/programming/rust/pangea_hackathon/simulation/src/main.rs /Users/jclmnop/programming/rust/pangea_hackathon/simulation/src/sensor.rs

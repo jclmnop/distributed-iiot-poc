@@ -280,14 +280,15 @@ impl NatsSensorPollingProvider {
         // TODO: - add value_type field which desers to an enum, to handle floats/ints etc without needing
         //         to convert to a string
         //       - use timestamp from sensor after configuring RTC on pico-w
-        let source = format!("{}-{}-{}", sensor.location, sensor.alias, sensor.id);
+        let source = format!("{}.{}", sensor.location, sensor.alias);
 
         LogEvent {
             timestamp: Some(timestamp.to_string()),
-            message: reading,
+            message: format!("{}: {}", source, reading),
             source: Some(source.clone()),
             status: Some(status.to_string()),
             action: Some("SENSOR_READING".to_string()),
+            new: Some(reading),
             ..Default::default()
         }
     }
