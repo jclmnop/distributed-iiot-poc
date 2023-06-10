@@ -21,7 +21,6 @@ static AUDIT_SEARCH_ENDPOINT: Lazy<String> = Lazy::new(|| {
 });
 
 pub fn build_log_request(
-    context: &Context,
     api_token: &String,
     mut event: LogEvent,
 ) -> RpcResult<HttpRequest> {
@@ -39,7 +38,6 @@ pub fn build_log_request(
 
 //TODO: use a proper search query type
 pub fn build_search_request(
-    context: &Context,
     api_token: &String,
     mut query: SearchParams,
 ) -> RpcResult<HttpRequest> {
@@ -99,13 +97,25 @@ impl ConvertTimestamps for SearchParams {
                 timestamp.iter_mut().for_each(|t| {
                     *t = timestamp_to_datetime(Some(t.to_string())).unwrap_or("".to_string())
                 });
-                restrictions.timestamp = Some(timestamp.into_iter().filter(|t| t != &&"".to_string()).map(|t| *t).collect());
+                restrictions.timestamp = Some(
+                    timestamp
+                        .into_iter()
+                        .filter(|t| t != &&"".to_string())
+                        .map(|t| t.clone())
+                        .collect(),
+                );
             }
             if let Some(received_at) = &mut restrictions.received_at {
                 received_at.iter_mut().for_each(|t| {
                     *t = timestamp_to_datetime(Some(t.to_string())).unwrap_or("".to_string())
                 });
-                restrictions.received_at = Some(received_at.into_iter().filter(|t| t != &&"".to_string()).map(|t| *t).collect());
+                restrictions.received_at = Some(
+                    received_at
+                        .into_iter()
+                        .filter(|t| t != &&"".to_string())
+                        .map(|t| t.clone())
+                        .collect(),
+                );
             }
         }
     }
