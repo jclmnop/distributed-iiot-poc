@@ -81,13 +81,20 @@ impl PangeaApi for PangeaApiActor {
         let client = HttpClientSender::new();
         let api_token = api::get_api_token(ctx).await?;
         let req = build_search_request(&api_token, query.to_owned())?;
+        info!("Sending search request to {}", req.url);
         let resp = client.request(ctx, &req).await?;
         if resp.status_code == 200 {
             info!("Successfully queried audit log");
             match serde_json::from_slice::<SearchResponse>(&resp.body) {
                 Ok(search_response) => Ok(search_response),
                 Err(e) => {
-                    error!("Error deserializing search response: {}", e);
+                    error!(
+                        "Error deserializing search response: \
+                    \n\tError:{}\
+                    \n\tResponse body: {}",
+                        e,
+                        std::str::from_utf8(&resp.body).unwrap_or("Invalid UTF-8")
+                    );
                     Err(RpcError::Other(format!(
                         "Error deserializing search response: {}",
                         e

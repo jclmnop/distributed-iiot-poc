@@ -20,10 +20,7 @@ static AUDIT_SEARCH_ENDPOINT: Lazy<String> = Lazy::new(|| {
     s
 });
 
-pub fn build_log_request(
-    api_token: &String,
-    mut event: LogEvent,
-) -> RpcResult<HttpRequest> {
+pub fn build_log_request(api_token: &String, mut event: LogEvent) -> RpcResult<HttpRequest> {
     event.convert_timestamps();
     let headers = headers(api_token);
     let body = serde_json::json!({ "event": event });
@@ -37,10 +34,7 @@ pub fn build_log_request(
 }
 
 //TODO: use a proper search query type
-pub fn build_search_request(
-    api_token: &String,
-    mut query: SearchParams,
-) -> RpcResult<HttpRequest> {
+pub fn build_search_request(api_token: &String, mut query: SearchParams) -> RpcResult<HttpRequest> {
     query.convert_timestamps();
     let headers = headers(api_token);
     let body = serde_json::to_vec(&query).map_err(|e| RpcError::Ser(e.to_string()))?;
