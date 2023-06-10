@@ -343,10 +343,6 @@ pub struct LogEvent {
     /// This field is an optional client-supplied timestamp.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
-    /// If true, include the root hash of the tree and the membership proof for each record in the response.
-    /// default: `true`
-    #[serde(default)]
-    pub verbose: bool,
 }
 
 // Encode LogEvent as CBOR and append to output stream
@@ -359,7 +355,7 @@ pub fn encode_log_event<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(11)?;
+    e.map(10)?;
     if let Some(val) = val.action.as_ref() {
         e.str("action")?;
         e.str(val)?;
@@ -416,8 +412,6 @@ where
     } else {
         e.null()?;
     }
-    e.str("verbose")?;
-    e.bool(val.verbose)?;
     Ok(())
 }
 
@@ -435,7 +429,6 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
         let mut target: Option<Option<String>> = Some(None);
         let mut tenant_id: Option<Option<String>> = Some(None);
         let mut timestamp: Option<Option<String>> = Some(None);
-        let mut verbose: Option<bool> = None;
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -523,7 +516,7 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    10 => verbose = Some(d.bool()?),
+
                     _ => d.skip()?,
                 }
             }
@@ -604,7 +597,6 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    "verbose" => verbose = Some(d.bool()?),
                     _ => d.skip()?,
                 }
             }
@@ -627,14 +619,6 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
             target: target.unwrap(),
             tenant_id: tenant_id.unwrap(),
             timestamp: timestamp.unwrap(),
-
-            verbose: if let Some(__x) = verbose {
-                __x
-            } else {
-                return Err(RpcError::Deser(
-                    "missing field LogEvent.verbose (#10)".to_string(),
-                ));
-            },
         }
     };
     Ok(__result)
@@ -885,6 +869,10 @@ pub struct SearchParams {
     /// A period of time or an absolute timestamp
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start: Option<String>,
+    /// If true, include the root hash of the tree and the membership proof for each record in the response.
+    /// default: `true`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verbose: Option<bool>,
 }
 
 // Encode SearchParams as CBOR and append to output stream
@@ -897,7 +885,7 @@ pub fn encode_search_params<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(8)?;
+    e.map(9)?;
     if let Some(val) = val.end.as_ref() {
         e.str("end")?;
         e.str(val)?;
@@ -946,6 +934,12 @@ where
     } else {
         e.null()?;
     }
+    if let Some(val) = val.verbose.as_ref() {
+        e.str("verbose")?;
+        e.bool(*val)?;
+    } else {
+        e.null()?;
+    }
     Ok(())
 }
 
@@ -963,6 +957,7 @@ pub fn decode_search_params(
         let mut query: Option<Option<String>> = Some(None);
         let mut search_restriction: Option<Option<SearchRestrictionParams>> = Some(None);
         let mut start: Option<Option<String>> = Some(None);
+        let mut verbose: Option<Option<bool>> = Some(None);
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -1041,6 +1036,14 @@ pub fn decode_search_params(
                             Some(Some(d.str()?.to_string()))
                         }
                     }
+                    8 => {
+                        verbose = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bool()?))
+                        }
+                    }
 
                     _ => d.skip()?,
                 }
@@ -1113,6 +1116,14 @@ pub fn decode_search_params(
                             Some(Some(d.str()?.to_string()))
                         }
                     }
+                    "verbose" => {
+                        verbose = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bool()?))
+                        }
+                    }
                     _ => d.skip()?,
                 }
             }
@@ -1126,6 +1137,7 @@ pub fn decode_search_params(
             query: query.unwrap(),
             search_restriction: search_restriction.unwrap(),
             start: start.unwrap(),
+            verbose: verbose.unwrap(),
         }
     };
     Ok(__result)

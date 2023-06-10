@@ -67,9 +67,6 @@ structure LogEvent {
     timestamp: String,
     /// An optional client-supplied tenant_id
     tenant_id: String,
-    /// If true, include the root hash of the tree and the membership proof for each record in the response.
-    ///     default: `true`
-    verbose: Boolean,
 }
 
 /// Parameters for searching the audit log, all fields are optional
@@ -101,6 +98,10 @@ structure SearchParams {
     /// e.g. `"actor": ["John Smith", "Jane Doe"]` will only return results where the actor field is either "John Smith"
     /// or "Jane Doe". "John Smith Jr The Third" will not be returned.
     search_restriction: SearchRestrictionParams,
+    /// If true, include the root hash of the tree and the membership proof for each record in the response.
+    ///     default: `true`
+    @box
+    verbose: Boolean,
 }
 
 list Strings {
