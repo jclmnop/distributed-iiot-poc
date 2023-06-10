@@ -1191,9 +1191,9 @@ pub struct SearchParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start: Option<String>,
     /// If true, include the root hash of the tree and the membership proof for each record in the response.
-    /// default: `true`
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub verbose: Option<bool>,
+    /// default: `false` (pangea API's default is true but we override this)
+    #[serde(default)]
+    pub verbose: bool,
 }
 
 // Encode SearchParams as CBOR and append to output stream
@@ -1255,12 +1255,8 @@ where
     } else {
         e.null()?;
     }
-    if let Some(val) = val.verbose.as_ref() {
-        e.str("verbose")?;
-        e.bool(*val)?;
-    } else {
-        e.null()?;
-    }
+    e.str("verbose")?;
+    e.bool(val.verbose)?;
     Ok(())
 }
 
@@ -1278,7 +1274,7 @@ pub fn decode_search_params(
         let mut query: Option<Option<String>> = Some(None);
         let mut search_restriction: Option<Option<SearchRestrictionParams>> = Some(None);
         let mut start: Option<Option<String>> = Some(None);
-        let mut verbose: Option<Option<bool>> = Some(None);
+        let mut verbose: Option<bool> = None;
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -1357,15 +1353,7 @@ pub fn decode_search_params(
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    8 => {
-                        verbose = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
-                            d.skip()?;
-                            Some(None)
-                        } else {
-                            Some(Some(d.bool()?))
-                        }
-                    }
-
+                    8 => verbose = Some(d.bool()?),
                     _ => d.skip()?,
                 }
             }
@@ -1437,14 +1425,7 @@ pub fn decode_search_params(
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-                    "verbose" => {
-                        verbose = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
-                            d.skip()?;
-                            Some(None)
-                        } else {
-                            Some(Some(d.bool()?))
-                        }
-                    }
+                    "verbose" => verbose = Some(d.bool()?),
                     _ => d.skip()?,
                 }
             }
@@ -1458,7 +1439,14 @@ pub fn decode_search_params(
             query: query.unwrap(),
             search_restriction: search_restriction.unwrap(),
             start: start.unwrap(),
-            verbose: verbose.unwrap(),
+
+            verbose: if let Some(__x) = verbose {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchParams.verbose (#8)".to_string(),
+                ));
+            },
         }
     };
     Ok(__result)

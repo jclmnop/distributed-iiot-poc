@@ -99,8 +99,7 @@ structure SearchParams {
     /// or "Jane Doe". "John Smith Jr The Third" will not be returned.
     search_restriction: SearchRestrictionParams,
     /// If true, include the root hash of the tree and the membership proof for each record in the response.
-    ///     default: `true`
-    @box
+    ///     default: `false` (pangea API's default is true but we override this)
     verbose: Boolean,
 }
 
