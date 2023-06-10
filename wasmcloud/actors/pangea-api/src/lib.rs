@@ -1,7 +1,7 @@
 mod api;
 
 use crate::api::build_search_request;
-use actor_interfaces::{LogEvent, PangeaApi, PangeaApiReceiver, SearchResponse, WriteResult};
+use actor_interfaces::{LogEvent, PangeaApi, PangeaApiReceiver, SearchParams, SearchResponse, WriteResult};
 use api::build_log_request;
 use wasmbus_rpc::actor::prelude::*;
 use wasmcloud_interface_httpclient::{HttpClient, HttpClientSender};
@@ -66,15 +66,16 @@ impl PangeaApi for PangeaApiActor {
         Ok(WriteResult { success, reason })
     }
 
-    async fn search_audit_log<TS: ToString + ?Sized + Sync>(
+    async fn search_audit_log(
         &self,
         ctx: &Context,
-        query: &TS,
+        query: &SearchParams,
     ) -> RpcResult<SearchResponse> {
-        info!("Received search query: {}", query.to_string());
+        info!("Received search query: {}", query.query.unwrap_or("n/a".to_string()));
+        debug!("Query: {:?}", query);
         let client = HttpClientSender::new();
         let api_token = api::get_api_token(ctx).await?;
-        let req = build_search_request(ctx, &api_token, query.to_string())?;
+        let req = build_search_request(ctx, &api_token, query)?;
         let resp = client.request(ctx, &req).await?;
         if resp.status_code == 200 {
             info!("Successfully queried audit log");

@@ -1,4 +1,4 @@
-use actor_interfaces::LogEvent;
+use actor_interfaces::{LogEvent, SearchParams};
 use once_cell::sync::Lazy;
 use wasmbus_rpc::actor::prelude::Context;
 use wasmbus_rpc::error::{RpcError, RpcResult};
@@ -25,7 +25,7 @@ pub fn build_log_request(
     api_token: &String,
     mut event: LogEvent,
 ) -> RpcResult<HttpRequest> {
-    event.timestamp = timestamp_to_datetime(event.timestamp);
+    event.convert_timestamps();
     let headers = headers(api_token);
     let body = serde_json::json!({ "event": event });
     let body = serde_json::to_vec(&body).map_err(|e| RpcError::Ser(e.to_string()))?;
@@ -41,8 +41,9 @@ pub fn build_log_request(
 pub fn build_search_request(
     context: &Context,
     api_token: &String,
-    query: String,
+    mut query: SearchParams,
 ) -> RpcResult<HttpRequest> {
+    query.convert_timestamps();
     let headers = headers(api_token);
     let body = serde_json::to_vec(&query).map_err(|e| RpcError::Ser(e.to_string()))?;
     Ok(HttpRequest {
@@ -82,5 +83,36 @@ fn timestamp_to_datetime(timestamp: Option<String>) -> Option<String> {
         Some(dt)
     } else {
         None
+    }
+}
+
+trait ConvertTimestamps {
+    fn convert_timestamps(&mut self);
+}
+
+impl ConvertTimestamps for SearchParams {
+    fn convert_timestamps(&mut self) {
+        self.start = timestamp_to_datetime(self.start.clone());
+        self.end = timestamp_to_datetime(self.end.clone());
+        if let Some(restrictions) = &mut self.search_restriction {
+            if let Some(timestamp) = &mut restrictions.timestamp {
+                timestamp.iter_mut().for_each(|t| {
+                    *t = timestamp_to_datetime(Some(t.to_string())).unwrap_or("".to_string())
+                });
+                restrictions.timestamp = Some(timestamp.into_iter().filter(|t| t != &&"".to_string()).map(|t| *t).collect());
+            }
+            if let Some(received_at) = &mut restrictions.received_at {
+                received_at.iter_mut().for_each(|t| {
+                    *t = timestamp_to_datetime(Some(t.to_string())).unwrap_or("".to_string())
+                });
+                restrictions.received_at = Some(received_at.into_iter().filter(|t| t != &&"".to_string()).map(|t| *t).collect());
+            }
+        }
+    }
+}
+
+impl ConvertTimestamps for LogEvent {
+    fn convert_timestamps(&mut self) {
+        self.timestamp = timestamp_to_datetime(self.timestamp.clone());
     }
 }

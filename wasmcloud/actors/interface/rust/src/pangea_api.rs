@@ -302,7 +302,7 @@ pub fn decode_envelopes(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelo
     };
     Ok(__result)
 }
-/// A log event which conforms to the [Pangea API](https://pangea.cloud/docs/audit/using-secure-audit-log/log-events)
+/// A log event which conforms to the [Pangea API](https://pangea.cloud/docs/api/audit/?focus=audit#log-an-entry)
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct LogEvent {
     /// This is used to record the action that occurred. Typical values seen in this field are "Create/Read/Update/Delete,"
@@ -343,6 +343,10 @@ pub struct LogEvent {
     /// This field is an optional client-supplied timestamp.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
+    /// If true, include the root hash of the tree and the membership proof for each record in the response.
+    /// default: `true`
+    #[serde(default)]
+    pub verbose: bool,
 }
 
 // Encode LogEvent as CBOR and append to output stream
@@ -355,7 +359,7 @@ pub fn encode_log_event<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(10)?;
+    e.map(11)?;
     if let Some(val) = val.action.as_ref() {
         e.str("action")?;
         e.str(val)?;
@@ -412,6 +416,8 @@ where
     } else {
         e.null()?;
     }
+    e.str("verbose")?;
+    e.bool(val.verbose)?;
     Ok(())
 }
 
@@ -429,6 +435,7 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
         let mut target: Option<Option<String>> = Some(None);
         let mut tenant_id: Option<Option<String>> = Some(None);
         let mut timestamp: Option<Option<String>> = Some(None);
+        let mut verbose: Option<bool> = None;
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -516,7 +523,7 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
                             Some(Some(d.str()?.to_string()))
                         }
                     }
-
+                    10 => verbose = Some(d.bool()?),
                     _ => d.skip()?,
                 }
             }
@@ -597,6 +604,7 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
                             Some(Some(d.str()?.to_string()))
                         }
                     }
+                    "verbose" => verbose = Some(d.bool()?),
                     _ => d.skip()?,
                 }
             }
@@ -619,6 +627,14 @@ pub fn decode_log_event(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEve
             target: target.unwrap(),
             tenant_id: tenant_id.unwrap(),
             timestamp: timestamp.unwrap(),
+
+            verbose: if let Some(__x) = verbose {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field LogEvent.verbose (#10)".to_string(),
+                ));
+            },
         }
     };
     Ok(__result)
@@ -831,6 +847,289 @@ pub fn decode_search_errors(
     };
     Ok(__result)
 }
+/// Parameters for searching the audit log, all fields are optional
+/// Conforms to the [Pangea API](https://pangea.cloud/docs/api/audit/?focus=audit#search-the-log)
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SearchParams {
+    /// A period of time or an absolute timestamp
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end: Option<String>,
+    /// Number of audit records to include from the first page of the results
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u64>,
+    /// Maximum number of results to return.
+    /// min: 1
+    /// max: 10,000
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<u64>,
+    /// Specify the sort order of the response.
+    /// Options: `asc`, `desc`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order: Option<String>,
+    /// Name of the colum to sort the results by.
+    /// Options: `actor`, `action`, `message`, `new`, `old`, `source`,
+    /// `status`, `target`, `timestamp`, `tenant_id`, `received_at`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub order_by: Option<String>,
+    /// Natural search string; a space-seprated list of case-sensitive values. Enclose strings in double-quotes " to
+    /// include spaces. Optionally prefix with a field ID and a colon : to limit to a specific field.
+    /// e.g. `"actor:John Smith" action:Create` will search for the string "John Smith" in the actor field and the
+    /// string "Create" in the action field, returning results such as `actor:John Smith Jr The Third`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<String>,
+    /// Optional parameters to restrict the scope of the search based on specific values.
+    /// e.g. `"actor": ["John Smith", "Jane Doe"]` will only return results where the actor field is either "John Smith"
+    /// or "Jane Doe". "John Smith Jr The Third" will not be returned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search_restriction: Option<SearchRestrictionParams>,
+    /// A period of time or an absolute timestamp
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<String>,
+}
+
+// Encode SearchParams as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_search_params<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &SearchParams,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(8)?;
+    if let Some(val) = val.end.as_ref() {
+        e.str("end")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.limit.as_ref() {
+        e.str("limit")?;
+        e.u64(*val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.max_results.as_ref() {
+        e.str("max_results")?;
+        e.u64(*val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.order.as_ref() {
+        e.str("order")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.order_by.as_ref() {
+        e.str("order_by")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.query.as_ref() {
+        e.str("query")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.search_restriction.as_ref() {
+        e.str("search_restriction")?;
+        encode_search_restriction_params(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.start.as_ref() {
+        e.str("start")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    Ok(())
+}
+
+// Decode SearchParams from cbor input stream
+#[doc(hidden)]
+pub fn decode_search_params(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<SearchParams, RpcError> {
+    let __result = {
+        let mut end: Option<Option<String>> = Some(None);
+        let mut limit: Option<Option<u64>> = Some(None);
+        let mut max_results: Option<Option<u64>> = Some(None);
+        let mut order: Option<Option<String>> = Some(None);
+        let mut order_by: Option<Option<String>> = Some(None);
+        let mut query: Option<Option<String>> = Some(None);
+        let mut search_restriction: Option<Option<SearchRestrictionParams>> = Some(None);
+        let mut start: Option<Option<String>> = Some(None);
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct SearchParams, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        end = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    1 => {
+                        limit = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    2 => {
+                        max_results = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    3 => {
+                        order = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    4 => {
+                        order_by = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    5 => {
+                        query = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    6 => {
+                        search_restriction = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_search_restriction_params(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchRestrictionParams': {}", e))? ))
+                        }
+                    }
+                    7 => {
+                        start = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "end" => {
+                        end = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "limit" => {
+                        limit = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    "max_results" => {
+                        max_results = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    "order" => {
+                        order = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "order_by" => {
+                        order_by = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "query" => {
+                        query = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "search_restriction" => {
+                        search_restriction = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_search_restriction_params(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchRestrictionParams': {}", e))? ))
+                        }
+                    }
+                    "start" => {
+                        start = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    _ => d.skip()?,
+                }
+            }
+        }
+        SearchParams {
+            end: end.unwrap(),
+            limit: limit.unwrap(),
+            max_results: max_results.unwrap(),
+            order: order.unwrap(),
+            order_by: order_by.unwrap(),
+            query: query.unwrap(),
+            search_restriction: search_restriction.unwrap(),
+            start: start.unwrap(),
+        }
+    };
+    Ok(__result)
+}
 /// API response
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchResponse {
@@ -997,6 +1296,472 @@ pub fn decode_search_response(
         };
     Ok(__result)
 }
+/// Parameters for restricting search results, for example if you only wanted
+/// to see events from a specific actor or source
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SearchRestrictionParams {
+    /// A list of actions to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<Strings>,
+    /// A list of actors to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actor: Option<Strings>,
+    /// A list of messages to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<Strings>,
+    /// A list of new values to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub new: Option<Strings>,
+    /// A list of old values to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub old: Option<Strings>,
+    /// A list of received_at timestamps to restrict the search to. This is the
+    /// timestamp provided by Pangea when logging the event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub received_at: Option<Strings>,
+    /// A list of sources to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Strings>,
+    /// A list of statuses to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<Strings>,
+    /// A list of targets to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<Strings>,
+    /// A list of tenant_ids to restrict the search to
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tenant_id: Option<Strings>,
+    /// A list of timestamps to restrict the search to. This is the timestamp
+    /// provided by the client when logging the event.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<Strings>,
+}
+
+// Encode SearchRestrictionParams as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_search_restriction_params<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &SearchRestrictionParams,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(11)?;
+    if let Some(val) = val.action.as_ref() {
+        e.str("action")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.actor.as_ref() {
+        e.str("actor")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.message.as_ref() {
+        e.str("message")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.new.as_ref() {
+        e.str("new")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.old.as_ref() {
+        e.str("old")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.received_at.as_ref() {
+        e.str("received_at")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.source.as_ref() {
+        e.str("source")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.status.as_ref() {
+        e.str("status")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.target.as_ref() {
+        e.str("target")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.tenant_id.as_ref() {
+        e.str("tenant_id")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.timestamp.as_ref() {
+        e.str("timestamp")?;
+        encode_strings(e, val)?;
+    } else {
+        e.null()?;
+    }
+    Ok(())
+}
+
+// Decode SearchRestrictionParams from cbor input stream
+#[doc(hidden)]
+pub fn decode_search_restriction_params(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<SearchRestrictionParams, RpcError> {
+    let __result = {
+        let mut action: Option<Option<Strings>> = Some(None);
+        let mut actor: Option<Option<Strings>> = Some(None);
+        let mut message: Option<Option<Strings>> = Some(None);
+        let mut new: Option<Option<Strings>> = Some(None);
+        let mut old: Option<Option<Strings>> = Some(None);
+        let mut received_at: Option<Option<Strings>> = Some(None);
+        let mut source: Option<Option<Strings>> = Some(None);
+        let mut status: Option<Option<Strings>> = Some(None);
+        let mut target: Option<Option<Strings>> = Some(None);
+        let mut tenant_id: Option<Option<Strings>> = Some(None);
+        let mut timestamp: Option<Option<Strings>> = Some(None);
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct SearchRestrictionParams, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        action = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    1 => {
+                        actor = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    2 => {
+                        message = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    3 => {
+                        new = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    4 => {
+                        old = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    5 => {
+                        received_at = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    6 => {
+                        source = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    7 => {
+                        status = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    8 => {
+                        target = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    9 => {
+                        tenant_id = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    10 => {
+                        timestamp = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "action" => {
+                        action = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "actor" => {
+                        actor = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "message" => {
+                        message = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "new" => {
+                        new = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "old" => {
+                        old = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "received_at" => {
+                        received_at = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "source" => {
+                        source = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "status" => {
+                        status = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "target" => {
+                        target = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "tenant_id" => {
+                        tenant_id = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    "timestamp" => {
+                        timestamp = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(decode_strings(d).map_err(|e| {
+                                format!(
+                                    "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                    e
+                                )
+                            })?))
+                        }
+                    }
+                    _ => d.skip()?,
+                }
+            }
+        }
+        SearchRestrictionParams {
+            action: action.unwrap(),
+            actor: actor.unwrap(),
+            message: message.unwrap(),
+            new: new.unwrap(),
+            old: old.unwrap(),
+            received_at: received_at.unwrap(),
+            source: source.unwrap(),
+            status: status.unwrap(),
+            target: target.unwrap(),
+            tenant_id: tenant_id.unwrap(),
+            timestamp: timestamp.unwrap(),
+        }
+    };
+    Ok(__result)
+}
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchResult {
     #[serde(default)]
@@ -1088,6 +1853,50 @@ pub fn decode_search_result(
                 },
             }
         };
+    Ok(__result)
+}
+pub type Strings = Vec<String>;
+
+// Encode Strings as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_strings<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &Strings,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.array(val.len() as u64)?;
+    for item in val.iter() {
+        e.str(item)?;
+    }
+    Ok(())
+}
+
+// Decode Strings from cbor input stream
+#[doc(hidden)]
+pub fn decode_strings(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Strings, RpcError> {
+    let __result = {
+        if let Some(n) = d.array()? {
+            let mut arr: Vec<String> = Vec::with_capacity(n as usize);
+            for _ in 0..(n as usize) {
+                arr.push(d.str()?.to_string())
+            }
+            arr
+        } else {
+            // indefinite array
+            let mut arr: Vec<String> = Vec::new();
+            loop {
+                match d.datatype() {
+                    Err(_) => break,
+                    Ok(wasmbus_rpc::cbor::Type::Break) => break,
+                    Ok(_) => arr.push(d.str()?.to_string()),
+                }
+            }
+            arr
+        }
+    };
     Ok(__result)
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -1190,10 +1999,10 @@ pub fn decode_write_result(
 #[async_trait]
 pub trait PangeaApi {
     async fn write_audit_log(&self, ctx: &Context, arg: &LogEvents) -> RpcResult<WriteResult>;
-    async fn search_audit_log<TS: ToString + ?Sized + std::marker::Sync>(
+    async fn search_audit_log(
         &self,
         ctx: &Context,
-        arg: &TS,
+        arg: &SearchParams,
     ) -> RpcResult<SearchResponse>;
 }
 
@@ -1213,8 +2022,8 @@ pub trait PangeaApiReceiver: MessageDispatch + PangeaApi {
                 Ok(buf)
             }
             "SearchAuditLog" => {
-                let value: String = wasmbus_rpc::common::deserialize(&message.arg)
-                    .map_err(|e| RpcError::Deser(format!("'String': {}", e)))?;
+                let value: SearchParams = wasmbus_rpc::common::deserialize(&message.arg)
+                    .map_err(|e| RpcError::Deser(format!("'SearchParams': {}", e)))?;
 
                 let resp = PangeaApi::search_audit_log(self, ctx, &value).await?;
                 let buf = wasmbus_rpc::common::serialize(&resp)?;
@@ -1290,12 +2099,12 @@ impl<T: Transport + std::marker::Sync + std::marker::Send> PangeaApi for PangeaA
         Ok(value)
     }
     #[allow(unused)]
-    async fn search_audit_log<TS: ToString + ?Sized + std::marker::Sync>(
+    async fn search_audit_log(
         &self,
         ctx: &Context,
-        arg: &TS,
+        arg: &SearchParams,
     ) -> RpcResult<SearchResponse> {
-        let buf = wasmbus_rpc::common::serialize(&arg.to_string())?;
+        let buf = wasmbus_rpc::common::serialize(arg)?;
 
         let resp = self
             .transport
