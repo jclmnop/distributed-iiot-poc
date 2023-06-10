@@ -4,6 +4,7 @@ use wasmbus_rpc::actor::prelude::Context;
 use wasmbus_rpc::error::{RpcError, RpcResult};
 use wasmcloud_interface_httpclient::{HeaderMap, HeaderValues, HttpRequest};
 use wasmcloud_interface_keyvalue::{KeyValue, KeyValueSender};
+use wasmcloud_interface_logging::info;
 
 const API_KEY: &str = "PANGEA_API_KEY";
 const DOMAIN: &str = "aws.eu.pangea.cloud";
@@ -61,8 +62,10 @@ fn headers(api_token: &String) -> HeaderMap {
 }
 
 pub async fn get_api_token(ctx: &Context) -> RpcResult<String> {
+    info!("Getting API token from key value store");
     let kv = KeyValueSender::new();
     let api_token = kv.get(ctx, API_KEY).await?.value;
+    info!("Got API token from key value store");
     Ok(api_token)
 }
 

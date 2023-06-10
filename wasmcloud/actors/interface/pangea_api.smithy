@@ -103,6 +103,13 @@ structure SearchParams {
     verbose: Boolean,
 }
 
+structure PageParams {
+    @required
+    id: String,
+    limit: U64,
+    offset: U64,
+}
+
 list Strings {
     member: String
 }
@@ -156,6 +163,10 @@ structure SearchResult {
     count: U64,
     @required
     events: Envelopes
+    @required
+    expires_at: String,
+    @required @nonEmptyString
+    id: String,
     root: Root,
 }
 

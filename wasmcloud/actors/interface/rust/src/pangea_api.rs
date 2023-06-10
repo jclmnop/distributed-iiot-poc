@@ -2077,6 +2077,10 @@ pub struct SearchResult {
     #[serde(default)]
     pub count: u64,
     pub events: Envelopes,
+    #[serde(default)]
+    pub expires_at: String,
+    #[serde(default)]
+    pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root: Option<Root>,
 }
@@ -2091,11 +2095,15 @@ pub fn encode_search_result<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(3)?;
+    e.map(5)?;
     e.str("count")?;
     e.u64(val.count)?;
     e.str("events")?;
     encode_envelopes(e, &val.events)?;
+    e.str("expires_at")?;
+    e.str(&val.expires_at)?;
+    e.str("id")?;
+    e.str(&val.id)?;
     if let Some(val) = val.root.as_ref() {
         e.str("root")?;
         encode_root(e, val)?;
@@ -2114,6 +2122,8 @@ pub fn decode_search_result(
         {
             let mut count: Option<u64> = None;
             let mut events: Option<Envelopes> = None;
+            let mut expires_at: Option<String> = None;
+            let mut id: Option<String> = None;
             let mut root: Option<Option<Root>> = Some(None);
 
             let is_array = match d.datatype()? {
@@ -2136,7 +2146,9 @@ pub fn decode_search_result(
                                 e
                             )
                         })?),
-                        2 => {
+                        2 => expires_at = Some(d.str()?.to_string()),
+                        3 => id = Some(d.str()?.to_string()),
+                        4 => {
                             root = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
                                 d.skip()?;
                                 Some(None)
@@ -2164,6 +2176,8 @@ pub fn decode_search_result(
                                 e
                             )
                         })?),
+                        "expires_at" => expires_at = Some(d.str()?.to_string()),
+                        "id" => id = Some(d.str()?.to_string()),
                         "root" => {
                             root = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
                                 d.skip()?;
@@ -2195,6 +2209,22 @@ pub fn decode_search_result(
                 } else {
                     return Err(RpcError::Deser(
                         "missing field SearchResult.events (#1)".to_string(),
+                    ));
+                },
+
+                expires_at: if let Some(__x) = expires_at {
+                    __x
+                } else {
+                    return Err(RpcError::Deser(
+                        "missing field SearchResult.expires_at (#2)".to_string(),
+                    ));
+                },
+
+                id: if let Some(__x) = id {
+                    __x
+                } else {
+                    return Err(RpcError::Deser(
+                        "missing field SearchResult.id (#3)".to_string(),
                     ));
                 },
                 root: root.unwrap(),
