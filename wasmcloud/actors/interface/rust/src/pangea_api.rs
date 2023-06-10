@@ -25,6 +25,85 @@ pub const SMITHY_VERSION: &str = "1.0";
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Envelope {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub envelope: Option<EnvelopeInner>,
+}
+
+// Encode Envelope as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_envelope<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &Envelope,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(1)?;
+    if let Some(val) = val.envelope.as_ref() {
+        e.str("envelope")?;
+        encode_envelope_inner(e, val)?;
+    } else {
+        e.null()?;
+    }
+    Ok(())
+}
+
+// Decode Envelope from cbor input stream
+#[doc(hidden)]
+pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelope, RpcError> {
+    let __result = {
+        let mut envelope: Option<Option<EnvelopeInner>> = Some(None);
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct Envelope, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        envelope = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_envelope_inner(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}", e))? ))
+                        }
+                    }
+
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "envelope" => {
+                        envelope = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_envelope_inner(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}", e))? ))
+                        }
+                    }
+                    _ => d.skip()?,
+                }
+            }
+        }
+        Envelope {
+            envelope: envelope.unwrap(),
+        }
+    };
+    Ok(__result)
+}
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EnvelopeInner {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub err: Option<SearchErrors>,
     pub event: LogEvent,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -39,12 +118,12 @@ pub struct Envelope {
     pub signature: Option<String>,
 }
 
-// Encode Envelope as CBOR and append to output stream
+// Encode EnvelopeInner as CBOR and append to output stream
 #[doc(hidden)]
 #[allow(unused_mut)]
-pub fn encode_envelope<W: wasmbus_rpc::cbor::Write>(
+pub fn encode_envelope_inner<W: wasmbus_rpc::cbor::Write>(
     mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
-    val: &Envelope,
+    val: &EnvelopeInner,
 ) -> RpcResult<()>
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
@@ -87,9 +166,11 @@ where
     Ok(())
 }
 
-// Decode Envelope from cbor input stream
+// Decode EnvelopeInner from cbor input stream
 #[doc(hidden)]
-pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelope, RpcError> {
+pub fn decode_envelope_inner(
+    d: &mut wasmbus_rpc::cbor::Decoder<'_>,
+) -> Result<EnvelopeInner, RpcError> {
     let __result = {
         let mut err: Option<Option<SearchErrors>> = Some(None);
         let mut event: Option<LogEvent> = None;
@@ -104,7 +185,7 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
             wasmbus_rpc::cbor::Type::Map => false,
             _ => {
                 return Err(RpcError::Deser(
-                    "decoding struct Envelope, expected array or map".to_string(),
+                    "decoding struct EnvelopeInner, expected array or map".to_string(),
                 ))
             }
         };
@@ -222,14 +303,14 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
                 }
             }
         }
-        Envelope {
+        EnvelopeInner {
             err: err.unwrap(),
 
             event: if let Some(__x) = event {
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field Envelope.event (#1)".to_string(),
+                    "missing field EnvelopeInner.event (#1)".to_string(),
                 ));
             },
             hash: hash.unwrap(),
@@ -240,7 +321,7 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
                 __x
             } else {
                 return Err(RpcError::Deser(
-                    "missing field Envelope.received_at (#5)".to_string(),
+                    "missing field EnvelopeInner.received_at (#5)".to_string(),
                 ));
             },
             signature: signature.unwrap(),

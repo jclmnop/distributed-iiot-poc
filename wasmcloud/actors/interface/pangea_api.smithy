@@ -177,6 +177,10 @@ list Envelopes {
 }
 
 structure Envelope {
+    envelope: EnvelopeInner,
+}
+
+structure EnvelopeInner {
     @required
     event: LogEvent,
     err: SearchErrors,
