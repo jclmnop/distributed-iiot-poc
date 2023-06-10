@@ -24,8 +24,15 @@ pub const SMITHY_VERSION: &str = "1.0";
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Envelope {
+    pub envelope: EnvelopeInner,
+    #[serde(default)]
+    pub hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub envelope: Option<EnvelopeInner>,
+    pub leaf_index: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub membership_proof: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub published: Option<bool>,
 }
 
 // Encode Envelope as CBOR and append to output stream
@@ -38,10 +45,26 @@ pub fn encode_envelope<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(1)?;
-    if let Some(val) = val.envelope.as_ref() {
-        e.str("envelope")?;
-        encode_envelope_inner(e, val)?;
+    e.map(5)?;
+    e.str("envelope")?;
+    encode_envelope_inner(e, &val.envelope)?;
+    e.str("hash")?;
+    e.str(&val.hash)?;
+    if let Some(val) = val.leaf_index.as_ref() {
+        e.str("leaf_index")?;
+        e.u64(*val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.membership_proof.as_ref() {
+        e.str("membership_proof")?;
+        e.str(val)?;
+    } else {
+        e.null()?;
+    }
+    if let Some(val) = val.published.as_ref() {
+        e.str("published")?;
+        e.bool(*val)?;
     } else {
         e.null()?;
     }
@@ -52,7 +75,11 @@ where
 #[doc(hidden)]
 pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelope, RpcError> {
     let __result = {
-        let mut envelope: Option<Option<EnvelopeInner>> = Some(None);
+        let mut envelope: Option<EnvelopeInner> = None;
+        let mut hash: Option<String> = None;
+        let mut leaf_index: Option<Option<u64>> = Some(None);
+        let mut membership_proof: Option<Option<String>> = Some(None);
+        let mut published: Option<Option<bool>> = Some(None);
 
         let is_array = match d.datatype()? {
             wasmbus_rpc::cbor::Type::Array => true,
@@ -67,12 +94,35 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
             let len = d.fixed_array()?;
             for __i in 0..(len as usize) {
                 match __i {
-                    0 => {
-                        envelope = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                    0 => envelope = Some(decode_envelope_inner(d).map_err(|e| {
+                        format!(
+                            "decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}",
+                            e
+                        )
+                    })?),
+                    1 => hash = Some(d.str()?.to_string()),
+                    2 => {
+                        leaf_index = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
                             d.skip()?;
                             Some(None)
                         } else {
-                            Some(Some( decode_envelope_inner(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}", e))? ))
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    3 => {
+                        membership_proof = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    4 => {
+                        published = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bool()?))
                         }
                     }
 
@@ -83,12 +133,35 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
             let len = d.fixed_map()?;
             for __i in 0..(len as usize) {
                 match d.str()? {
-                    "envelope" => {
-                        envelope = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                    "envelope" => envelope = Some(decode_envelope_inner(d).map_err(|e| {
+                        format!(
+                            "decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}",
+                            e
+                        )
+                    })?),
+                    "hash" => hash = Some(d.str()?.to_string()),
+                    "leaf_index" => {
+                        leaf_index = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
                             d.skip()?;
                             Some(None)
                         } else {
-                            Some(Some( decode_envelope_inner(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#EnvelopeInner': {}", e))? ))
+                            Some(Some(d.u64()?))
+                        }
+                    }
+                    "membership_proof" => {
+                        membership_proof = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.str()?.to_string()))
+                        }
+                    }
+                    "published" => {
+                        published = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some(d.bool()?))
                         }
                     }
                     _ => d.skip()?,
@@ -96,7 +169,24 @@ pub fn decode_envelope(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Envelop
             }
         }
         Envelope {
-            envelope: envelope.unwrap(),
+            envelope: if let Some(__x) = envelope {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Envelope.envelope (#0)".to_string(),
+                ));
+            },
+
+            hash: if let Some(__x) = hash {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Envelope.hash (#1)".to_string(),
+                ));
+            },
+            leaf_index: leaf_index.unwrap(),
+            membership_proof: membership_proof.unwrap(),
+            published: published.unwrap(),
         }
     };
     Ok(__result)
@@ -759,6 +849,156 @@ pub fn decode_log_events(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<LogEv
     Ok(__result)
 }
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Root {
+    pub consistency_proof: Strings,
+    #[serde(default)]
+    pub published_at: String,
+    #[serde(default)]
+    pub root_hash: String,
+    #[serde(default)]
+    pub size: u64,
+    #[serde(default)]
+    pub tree_name: String,
+    #[serde(default)]
+    pub url: String,
+}
+
+// Encode Root as CBOR and append to output stream
+#[doc(hidden)]
+#[allow(unused_mut)]
+pub fn encode_root<W: wasmbus_rpc::cbor::Write>(
+    mut e: &mut wasmbus_rpc::cbor::Encoder<W>,
+    val: &Root,
+) -> RpcResult<()>
+where
+    <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
+{
+    e.map(6)?;
+    e.str("consistency_proof")?;
+    encode_strings(e, &val.consistency_proof)?;
+    e.str("published_at")?;
+    e.str(&val.published_at)?;
+    e.str("root_hash")?;
+    e.str(&val.root_hash)?;
+    e.str("size")?;
+    e.u64(val.size)?;
+    e.str("tree_name")?;
+    e.str(&val.tree_name)?;
+    e.str("url")?;
+    e.str(&val.url)?;
+    Ok(())
+}
+
+// Decode Root from cbor input stream
+#[doc(hidden)]
+pub fn decode_root(d: &mut wasmbus_rpc::cbor::Decoder<'_>) -> Result<Root, RpcError> {
+    let __result = {
+        let mut consistency_proof: Option<Strings> = None;
+        let mut published_at: Option<String> = None;
+        let mut root_hash: Option<String> = None;
+        let mut size: Option<u64> = None;
+        let mut tree_name: Option<String> = None;
+        let mut url: Option<String> = None;
+
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct Root, expected array or map".to_string(),
+                ))
+            }
+        };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => {
+                        consistency_proof = Some(decode_strings(d).map_err(|e| {
+                            format!(
+                                "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                e
+                            )
+                        })?)
+                    }
+                    1 => published_at = Some(d.str()?.to_string()),
+                    2 => root_hash = Some(d.str()?.to_string()),
+                    3 => size = Some(d.u64()?),
+                    4 => tree_name = Some(d.str()?.to_string()),
+                    5 => url = Some(d.str()?.to_string()),
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "consistency_proof" => {
+                        consistency_proof = Some(decode_strings(d).map_err(|e| {
+                            format!(
+                                "decoding 'jclmnop.iiot_poc.interface.pangea_api#Strings': {}",
+                                e
+                            )
+                        })?)
+                    }
+                    "published_at" => published_at = Some(d.str()?.to_string()),
+                    "root_hash" => root_hash = Some(d.str()?.to_string()),
+                    "size" => size = Some(d.u64()?),
+                    "tree_name" => tree_name = Some(d.str()?.to_string()),
+                    "url" => url = Some(d.str()?.to_string()),
+                    _ => d.skip()?,
+                }
+            }
+        }
+        Root {
+            consistency_proof: if let Some(__x) = consistency_proof {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Root.consistency_proof (#0)".to_string(),
+                ));
+            },
+
+            published_at: if let Some(__x) = published_at {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Root.published_at (#1)".to_string(),
+                ));
+            },
+
+            root_hash: if let Some(__x) = root_hash {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Root.root_hash (#2)".to_string(),
+                ));
+            },
+
+            size: if let Some(__x) = size {
+                __x
+            } else {
+                return Err(RpcError::Deser("missing field Root.size (#3)".to_string()));
+            },
+
+            tree_name: if let Some(__x) = tree_name {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field Root.tree_name (#4)".to_string(),
+                ));
+            },
+
+            url: if let Some(__x) = url {
+                __x
+            } else {
+                return Err(RpcError::Deser("missing field Root.url (#5)".to_string()));
+            },
+        }
+    };
+    Ok(__result)
+}
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SearchError {
     #[serde(default)]
     pub error: String,
@@ -1232,11 +1472,12 @@ pub struct SearchResponse {
     pub request_time: String,
     #[serde(default)]
     pub response_time: String,
-    pub result: SearchResult,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<SearchResult>,
     #[serde(default)]
     pub status: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
+    #[serde(default)]
+    pub summary: String,
 }
 
 // Encode SearchResponse as CBOR and append to output stream
@@ -1256,16 +1497,16 @@ where
     e.str(&val.request_time)?;
     e.str("response_time")?;
     e.str(&val.response_time)?;
-    e.str("result")?;
-    encode_search_result(e, &val.result)?;
-    e.str("status")?;
-    e.str(&val.status)?;
-    if let Some(val) = val.summary.as_ref() {
-        e.str("summary")?;
-        e.str(val)?;
+    if let Some(val) = val.result.as_ref() {
+        e.str("result")?;
+        encode_search_result(e, val)?;
     } else {
         e.null()?;
     }
+    e.str("status")?;
+    e.str(&val.status)?;
+    e.str("summary")?;
+    e.str(&val.summary)?;
     Ok(())
 }
 
@@ -1274,119 +1515,107 @@ where
 pub fn decode_search_response(
     d: &mut wasmbus_rpc::cbor::Decoder<'_>,
 ) -> Result<SearchResponse, RpcError> {
-    let __result =
-        {
-            let mut request_id: Option<String> = None;
-            let mut request_time: Option<String> = None;
-            let mut response_time: Option<String> = None;
-            let mut result: Option<SearchResult> = None;
-            let mut status: Option<String> = None;
-            let mut summary: Option<Option<String>> = Some(None);
+    let __result = {
+        let mut request_id: Option<String> = None;
+        let mut request_time: Option<String> = None;
+        let mut response_time: Option<String> = None;
+        let mut result: Option<Option<SearchResult>> = Some(None);
+        let mut status: Option<String> = None;
+        let mut summary: Option<String> = None;
 
-            let is_array = match d.datatype()? {
-                wasmbus_rpc::cbor::Type::Array => true,
-                wasmbus_rpc::cbor::Type::Map => false,
-                _ => {
-                    return Err(RpcError::Deser(
-                        "decoding struct SearchResponse, expected array or map".to_string(),
-                    ))
-                }
-            };
-            if is_array {
-                let len = d.fixed_array()?;
-                for __i in 0..(len as usize) {
-                    match __i {
-                        0 => request_id = Some(d.str()?.to_string()),
-                        1 => request_time = Some(d.str()?.to_string()),
-                        2 => response_time = Some(d.str()?.to_string()),
-                        3 => result = Some(decode_search_result(d).map_err(|e| {
-                            format!(
-                                "decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchResult': {}",
-                                e
-                            )
-                        })?),
-                        4 => status = Some(d.str()?.to_string()),
-                        5 => {
-                            summary = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
-                                d.skip()?;
-                                Some(None)
-                            } else {
-                                Some(Some(d.str()?.to_string()))
-                            }
-                        }
-
-                        _ => d.skip()?,
-                    }
-                }
-            } else {
-                let len = d.fixed_map()?;
-                for __i in 0..(len as usize) {
-                    match d.str()? {
-                        "request_id" => request_id = Some(d.str()?.to_string()),
-                        "request_time" => request_time = Some(d.str()?.to_string()),
-                        "response_time" => response_time = Some(d.str()?.to_string()),
-                        "result" => result = Some(decode_search_result(d).map_err(|e| {
-                            format!(
-                                "decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchResult': {}",
-                                e
-                            )
-                        })?),
-                        "status" => status = Some(d.str()?.to_string()),
-                        "summary" => {
-                            summary = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
-                                d.skip()?;
-                                Some(None)
-                            } else {
-                                Some(Some(d.str()?.to_string()))
-                            }
-                        }
-                        _ => d.skip()?,
-                    }
-                }
-            }
-            SearchResponse {
-                request_id: if let Some(__x) = request_id {
-                    __x
-                } else {
-                    return Err(RpcError::Deser(
-                        "missing field SearchResponse.request_id (#0)".to_string(),
-                    ));
-                },
-
-                request_time: if let Some(__x) = request_time {
-                    __x
-                } else {
-                    return Err(RpcError::Deser(
-                        "missing field SearchResponse.request_time (#1)".to_string(),
-                    ));
-                },
-
-                response_time: if let Some(__x) = response_time {
-                    __x
-                } else {
-                    return Err(RpcError::Deser(
-                        "missing field SearchResponse.response_time (#2)".to_string(),
-                    ));
-                },
-
-                result: if let Some(__x) = result {
-                    __x
-                } else {
-                    return Err(RpcError::Deser(
-                        "missing field SearchResponse.result (#3)".to_string(),
-                    ));
-                },
-
-                status: if let Some(__x) = status {
-                    __x
-                } else {
-                    return Err(RpcError::Deser(
-                        "missing field SearchResponse.status (#4)".to_string(),
-                    ));
-                },
-                summary: summary.unwrap(),
+        let is_array = match d.datatype()? {
+            wasmbus_rpc::cbor::Type::Array => true,
+            wasmbus_rpc::cbor::Type::Map => false,
+            _ => {
+                return Err(RpcError::Deser(
+                    "decoding struct SearchResponse, expected array or map".to_string(),
+                ))
             }
         };
+        if is_array {
+            let len = d.fixed_array()?;
+            for __i in 0..(len as usize) {
+                match __i {
+                    0 => request_id = Some(d.str()?.to_string()),
+                    1 => request_time = Some(d.str()?.to_string()),
+                    2 => response_time = Some(d.str()?.to_string()),
+                    3 => {
+                        result = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_search_result(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchResult': {}", e))? ))
+                        }
+                    }
+                    4 => status = Some(d.str()?.to_string()),
+                    5 => summary = Some(d.str()?.to_string()),
+                    _ => d.skip()?,
+                }
+            }
+        } else {
+            let len = d.fixed_map()?;
+            for __i in 0..(len as usize) {
+                match d.str()? {
+                    "request_id" => request_id = Some(d.str()?.to_string()),
+                    "request_time" => request_time = Some(d.str()?.to_string()),
+                    "response_time" => response_time = Some(d.str()?.to_string()),
+                    "result" => {
+                        result = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                            d.skip()?;
+                            Some(None)
+                        } else {
+                            Some(Some( decode_search_result(d).map_err(|e| format!("decoding 'jclmnop.iiot_poc.interface.pangea_api#SearchResult': {}", e))? ))
+                        }
+                    }
+                    "status" => status = Some(d.str()?.to_string()),
+                    "summary" => summary = Some(d.str()?.to_string()),
+                    _ => d.skip()?,
+                }
+            }
+        }
+        SearchResponse {
+            request_id: if let Some(__x) = request_id {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchResponse.request_id (#0)".to_string(),
+                ));
+            },
+
+            request_time: if let Some(__x) = request_time {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchResponse.request_time (#1)".to_string(),
+                ));
+            },
+
+            response_time: if let Some(__x) = response_time {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchResponse.response_time (#2)".to_string(),
+                ));
+            },
+            result: result.unwrap(),
+
+            status: if let Some(__x) = status {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchResponse.status (#4)".to_string(),
+                ));
+            },
+
+            summary: if let Some(__x) = summary {
+                __x
+            } else {
+                return Err(RpcError::Deser(
+                    "missing field SearchResponse.summary (#5)".to_string(),
+                ));
+            },
+        }
+    };
     Ok(__result)
 }
 /// Parameters for restricting search results, for example if you only wanted
@@ -1860,6 +2089,8 @@ pub struct SearchResult {
     #[serde(default)]
     pub count: u64,
     pub events: Envelopes,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root: Option<Root>,
 }
 
 // Encode SearchResult as CBOR and append to output stream
@@ -1872,11 +2103,17 @@ pub fn encode_search_result<W: wasmbus_rpc::cbor::Write>(
 where
     <W as wasmbus_rpc::cbor::Write>::Error: std::fmt::Display,
 {
-    e.map(2)?;
+    e.map(3)?;
     e.str("count")?;
     e.u64(val.count)?;
     e.str("events")?;
     encode_envelopes(e, &val.events)?;
+    if let Some(val) = val.root.as_ref() {
+        e.str("root")?;
+        encode_root(e, val)?;
+    } else {
+        e.null()?;
+    }
     Ok(())
 }
 
@@ -1889,6 +2126,7 @@ pub fn decode_search_result(
         {
             let mut count: Option<u64> = None;
             let mut events: Option<Envelopes> = None;
+            let mut root: Option<Option<Root>> = Some(None);
 
             let is_array = match d.datatype()? {
                 wasmbus_rpc::cbor::Type::Array => true,
@@ -1910,6 +2148,20 @@ pub fn decode_search_result(
                                 e
                             )
                         })?),
+                        2 => {
+                            root = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                                d.skip()?;
+                                Some(None)
+                            } else {
+                                Some(Some(decode_root(d).map_err(|e| {
+                                    format!(
+                                        "decoding 'jclmnop.iiot_poc.interface.pangea_api#Root': {}",
+                                        e
+                                    )
+                                })?))
+                            }
+                        }
+
                         _ => d.skip()?,
                     }
                 }
@@ -1924,6 +2176,19 @@ pub fn decode_search_result(
                                 e
                             )
                         })?),
+                        "root" => {
+                            root = if wasmbus_rpc::cbor::Type::Null == d.datatype()? {
+                                d.skip()?;
+                                Some(None)
+                            } else {
+                                Some(Some(decode_root(d).map_err(|e| {
+                                    format!(
+                                        "decoding 'jclmnop.iiot_poc.interface.pangea_api#Root': {}",
+                                        e
+                                    )
+                                })?))
+                            }
+                        }
                         _ => d.skip()?,
                     }
                 }
@@ -1944,6 +2209,7 @@ pub fn decode_search_result(
                         "missing field SearchResult.events (#1)".to_string(),
                     ));
                 },
+                root: root.unwrap(),
             }
         };
     Ok(__result)

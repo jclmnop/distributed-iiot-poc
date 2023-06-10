@@ -139,7 +139,6 @@ structure SearchRestrictionParams {
 
 /// API response
 structure SearchResponse {
-    @required
     result: SearchResult,
     @required
     request_id: String,
@@ -149,6 +148,7 @@ structure SearchResponse {
     response_time: String,
     @required
     status: String,
+    @required
     summary: String,
 }
 
@@ -157,6 +157,7 @@ structure SearchResult {
     count: U64,
     @required
     events: Envelopes
+    root: Root,
 }
 
 list SearchErrors {
@@ -177,7 +178,14 @@ list Envelopes {
 }
 
 structure Envelope {
+    @required
     envelope: EnvelopeInner,
+    @required
+    hash: String,
+    @box
+    published: Boolean,
+    leaf_index: U64,
+    membership_proof: String,
 }
 
 structure EnvelopeInner {
@@ -190,6 +198,21 @@ structure EnvelopeInner {
     public_key: String,
     membership_proof: String,
     hash: String
+}
+
+structure Root {
+    @required
+    url: String,
+    @required
+    published_at: String,
+    @required
+    size: U64,
+    @required
+    root_hash: String,
+    @required
+    tree_name: String,
+    @required
+    consistency_proof: Strings,
 }
 
 
