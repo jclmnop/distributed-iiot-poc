@@ -12,7 +12,8 @@
 path = "."
 files = [
 #    "common.smithy",
-    "pangea_api.smithy"
+    "pangea_api.smithy",
+    "ui.smithy",
 ]
 
 [[models]]
@@ -73,3 +74,7 @@ output_dir = "rust"
 [[rust.files]]
 path = "src/pangea_api.rs"
 namespace = "jclmnop.iiot_poc.interface.pangea_api"
+
+[[rust.files]]
+path = "src/ui.rs"
+namespace = "jclmnop.iiot_poc.interface.ui"
