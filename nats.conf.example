@@ -15,6 +15,7 @@ leafnodes {
     ]
 }
 
+server_name: "mqtt"
 mqtt {
    port: 1883
 }
