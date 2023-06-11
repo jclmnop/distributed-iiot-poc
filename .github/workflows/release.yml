@@ -37,8 +37,13 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           echo "artifact-name=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].targets[0].name')" >> $GITHUB_ENV
-      - name: Print directory structure
-        run: find . -print
+#      - name: Print directory structure
+#        run: find . -print
+      - name: Print file permissions
+        run: ls -l ./wasmcloud/actors/interface/rust/Cargo.toml
+      - name: Print working director
+        run: pwd
+        working-directory: ${{ env.WORKING_DIR }}
       - name: Build native executable
         working-directory: ${{ env.WORKING_DIR }}
         run: |
