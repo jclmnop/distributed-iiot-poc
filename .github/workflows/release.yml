@@ -145,7 +145,8 @@ jobs:
         if: ${{ !startswith(github.ref, 'refs/tags/') }}
         working-directory: ${{ env.WORKING_DIR }}
         run: |
-          echo "provider-version=latest" >> $GITHUB_ENV
+#          echo "provider-version=latest" >> $GITHUB_ENV
+           echo "provider-version=0.1.0" >> $GITHUB_ENV
       - name: Push provider archive to GHCR
         env:
           WASH_REG_USER: ${{ github.repository_owner }}
