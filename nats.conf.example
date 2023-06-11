@@ -1,0 +1,20 @@
+# This is an example of the config file I used on the raspberry pi to accept
+# MQTT connections over WiFi from the rp-pico-w, which are then forwarded to
+# the cosmonic NATS leaf node.
+
+jetstream {
+    domain=stargate
+}
+
+leafnodes {
+    remotes = [
+        {
+            url: "tls://connect.cosmonic.sh"
+            credentials: "<path to credentials file>"
+        }
+    ]
+}
+
+mqtt {
+   port: 1883
+}
