@@ -25,7 +25,7 @@ wasmcloud-interface-polling = { version = "0.1", path = "../interface/polling-in
 wascap = "0.11.0"
 macaddr = { version = "1.0.1", features = ["serde_std"] }
 
-actor-interfaces = { path = "../../actors/interface/rust" }
+actor-interfaces = { version = "0.1", path = "../../actors/interface/rust" }
 
 # test dependencies
 [dev-dependencies]
