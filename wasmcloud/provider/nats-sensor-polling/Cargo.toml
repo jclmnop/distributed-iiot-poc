@@ -32,5 +32,5 @@ actor-interfaces = { path = "../../actors/interface/rust" }
 wasmcloud-test-util = "0.8"
 
 [[bin]]
-name = "nats_sensor_polling"
+name = "nats-sensor-polling"
 path = "src/main.rs"

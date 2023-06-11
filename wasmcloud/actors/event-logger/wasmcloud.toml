@@ -5,4 +5,4 @@ version = "0.1.0"
 
 [actor]
 claims = ["wasmcloud:messaging", "wasmcloud:builtin:logging"]
-call_alias = "iiot/event-logger"
+call_alias = "iiot/event_logger"

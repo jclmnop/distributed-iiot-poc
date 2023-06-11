@@ -1,4 +1,4 @@
-PROJECT = nats_sensor_polling
+PROJECT = nats-sensor-polling
 NAME = "nats-sensor-polling"
 VENDOR = "jclmnop"
 CAPABILITY_ID = wasmcloud:polling
