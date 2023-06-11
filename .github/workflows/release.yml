@@ -8,6 +8,7 @@ on:
 #      - "src/**"
 #      - "Cargo.*"
       - "/wasmcloud/provider/nats-sensor-polling/**"
+      - "/.github/workflows/release.yml"
     tags:
       - "v*"
 env:
@@ -36,6 +37,8 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
         run: |
           echo "artifact-name=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].targets[0].name')" >> $GITHUB_ENV
+      - name: Print directory structure
+        run: find . -print
       - name: Build native executable
         working-directory: ${{ env.WORKING_DIR }}
         run: |
