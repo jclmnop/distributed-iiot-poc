@@ -27,7 +27,9 @@ static NATS_URL: Lazy<String> = Lazy::new(|| {
 async fn main() {
     let nats_client = async_nats::connect(NATS_URL.as_str()).await.unwrap();
 
-    let intervals = vec![10_000u64, 20_000u64, 30_000u64, 60_000u64];
+    // Stagger the intervals out a bit so that the sensors don't all poll at the same time.
+    // 10 minutes minimum poll interval so I don't use up all my free credit for pangea.
+    let intervals = vec![600_000u64, 610_000u64, 620_000u64, 630_000u64, 640_000u64, 650_000u64, 660_000u64, 670_000u64, 680_000u64];
 
     let mut rng = rand::thread_rng();
 
