@@ -3,7 +3,7 @@
 
 #
 # Cargo.lock is not included for interface libraries
-Cargo.lock
+#Cargo.lock
 # uncomment the following line if you don't want to check in generated html docs
 #html
 #
