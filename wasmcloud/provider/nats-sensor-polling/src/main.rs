@@ -6,7 +6,7 @@ mod config;
 mod nats;
 mod sensor;
 
-use actor_interfaces::LogEvent;
+use actor_interfaces::pangea_api::LogEvent;
 use futures::StreamExt;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
