@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/wasmcloud/actors/interface/rust/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/wasmcloud/actors/pangea-api/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/wasmcloud/actors/sensor-reader/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/wasmcloud/provider/interface/actors-interface/rust/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/wasmcloud/provider/interface/polling-interface/rust/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/wasmcloud/provider/nats-sensor-polling/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/simulation/target" />
@@ -16,6 +17,7 @@
       <excludeFolder url="file://$MODULE_DIR$/wasmcloud/actors/interface/rust/target" />
       <excludeFolder url="file://$MODULE_DIR$/wasmcloud/actors/pangea-api/target" />
       <excludeFolder url="file://$MODULE_DIR$/wasmcloud/actors/sensor-reader/target" />
+      <excludeFolder url="file://$MODULE_DIR$/wasmcloud/provider/interface/actors-interface/rust/target" />
       <excludeFolder url="file://$MODULE_DIR$/wasmcloud/provider/interface/polling-interface/rust/target" />
       <excludeFolder url="file://$MODULE_DIR$/wasmcloud/provider/nats-sensor-polling/target" />
     </content>

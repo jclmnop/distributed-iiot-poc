@@ -1,8 +1,8 @@
 [package]
 name = "actor-interfaces"
 version = "0.1.0"
-description = "Interface library for the actor-interfaces common capability, "
-authors = [ "" ]
+description = "I only uploaded this to crates.io because I was having some issues cross compiling with local dependencies. If anyone wants to use the name for something actually useful, DM me on github"
+authors = [ "jclmnop" ]
 edition = "2021"
 license = "Apache-2.0"
 

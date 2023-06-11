@@ -21,11 +21,11 @@ anyhow = "1.0.71"
 regex = "1.8.4"
 
 wasmbus-rpc = { version = "0.13", features = ["otel"] }
-wasmcloud-interface-polling = { version = "0.1", path = "../interface/polling-interface/rust" }
 wascap = "0.11.0"
 macaddr = { version = "1.0.1", features = ["serde_std"] }
 
-actor-interfaces = { version = "0.1", path = "../interface/actors-interface/rust" }
+actor-interfaces = "0.1"
+wasmcloud-interface-polling = "0.1"
 
 # test dependencies
 [dev-dependencies]
