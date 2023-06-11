@@ -15,7 +15,7 @@ env:
   WASH_ISSUER_KEY: ${{ secrets.WASH_ISSUER_KEY }}
   WASH_SUBJECT_KEY: ${{ secrets.WASH_SUBJECT_KEY_NATS_POLLING }}
   WASMCLOUD_PAT: ${{ secrets.WASMCLOUD_PAT }}
-  WORKING_DIR: ./wasmcloud/provider/nats-sensor-pollingcd
+  WORKING_DIR: ./wasmcloud/provider/nats-sensor-polling
 jobs:
   # Using a matrix, build for 6 supported targets for wasmCloud providers
   build_provider_targets:
