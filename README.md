@@ -35,9 +35,15 @@ wasmCloud host can pick up a sensor's heartbeat and then poll/read the correct
 NATS subjects for that sensor.
 
 ## Embedded
-Unfortunately this code is kind of redundant, because I was unable to get it to 
+~~Unfortunately this code is kind of redundant, because I was unable to get it to 
 connect to the cluster on my own WiFi, despite getting it to work round my friend's
-house. 
+house.~~
+
+I got it to work in the end. It's just using the internal temperature sensor for the
+CPU because the external temperature sensor I bought wasn't working and I didn't 
+have time to figure out why, but it's able to receive poll requests from the polling
+provider that's hosted on the Cosmonic managed wasmCloud host (geographically located 
+in the US, while the sensor is in the UK), and responds with the readings.
 
 It uses MQTT instead of NATS, but that's only because I couldn't find a 
 micropython or `no-std` Rust NATS client. If I had more time I probably would 
@@ -54,5 +60,17 @@ a Raspberry Pi, which would be running a wasmCloud host. Each local machine (Ras
 could either have all the necessary actors and providers running on it, or it could
 just act as a gateway to a supercluster (or both, for extra redundancy). 
 
+If it's possible to run a NATS server on a microcontroller, then the microcontroller
+could either connect directly to the supercluster, or could connect via another 
+microcontroller. I'm not sure if it's possible in a`no-std` environment, but might be 
+possible with something like an ESP32 that supports `std` Rust.
+
 In a real system I'd also use some kind of local database to cache the sensor readings
 if there's ever some extended downtime, and then upload them in bulk to the Pangea API.
+
+## OCI Images
+ghcr.io/jclmnop/iiot-actor-pangea-api:0.1.0
+ghcr.io/jclmnop/iiot-actor-event-logger:0.1.0
+ghcr.io/jclmnop/iiot-actor-sensor-reader:0.1.0
+ghcr.io/jclmnop/iiot-actor-http-gateway:0.1.0
+ghcr.io/jclmnop/distributed-iiot-poc/nats-sensor-polling:0.1.0
