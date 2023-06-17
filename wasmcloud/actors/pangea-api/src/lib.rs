@@ -25,7 +25,15 @@ impl PangeaApi for PangeaApiActor {
         let mut success = true;
         let mut reason = None;
         let client = HttpClientSender::new();
-        let api_token = api::get_api_token(ctx).await?;
+        let api_token = match api::get_api_token(ctx).await {
+            Ok(api_token) => api_token,
+            Err(e) => {
+                error!("Error getting API token: {}", e);
+                success = false;
+                reason = Some(format!("Error getting API token: {}", e));
+                return Ok(WriteResult { success, reason });
+            }
+        };
 
         for event in events {
             debug!("Event: {:?}", event);

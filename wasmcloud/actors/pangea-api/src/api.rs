@@ -1,25 +1,13 @@
 use actor_interfaces::{LogEvent, SearchParams};
-use once_cell::sync::Lazy;
 use wasmbus_rpc::actor::prelude::Context;
 use wasmbus_rpc::error::{RpcError, RpcResult};
-use wasmcloud_interface_httpclient::{HeaderMap, HeaderValues, HttpRequest};
+use wasmcloud_interface_httpclient::{HeaderMap, HttpRequest};
 use wasmcloud_interface_keyvalue::{KeyValue, KeyValueSender};
 use wasmcloud_interface_logging::info;
 
 const API_KEY: &str = "PANGEA_API_KEY";
-const DOMAIN: &str = "aws.eu.pangea.cloud";
-static AUDIT_URI: Lazy<String> = Lazy::new(|| {
-    let s = format!("https://audit.{}", DOMAIN);
-    s
-});
-static AUDIT_LOG_ENDPOINT: Lazy<String> = Lazy::new(|| {
-    let s = format!("{}/v1/log", AUDIT_URI.as_str());
-    s
-});
-static AUDIT_SEARCH_ENDPOINT: Lazy<String> = Lazy::new(|| {
-    let s = format!("{}/v1/search", AUDIT_URI.as_str());
-    s
-});
+const AUDIT_LOG_ENDPOINT: &str = "https://audit.aws.eu.pangea.cloud/v1/log";
+const AUDIT_SEARCH_ENDPOINT: &str = "https://audit.aws.eu.pangea.cloud/v1/search";
 
 pub fn build_log_request(api_token: &String, mut event: LogEvent) -> RpcResult<HttpRequest> {
     event.convert_timestamps();
@@ -48,7 +36,7 @@ pub fn build_search_request(api_token: &String, mut query: SearchParams) -> RpcR
 }
 
 fn headers(api_token: &String) -> HeaderMap {
-    let headers = HeaderMap::from([
+    HeaderMap::from([
         (
             "Content-Type".to_string(),
             vec!["application/json".to_string()],
@@ -57,8 +45,7 @@ fn headers(api_token: &String) -> HeaderMap {
             "Authorization".to_string(),
             vec![format!("Bearer {api_token}")],
         ),
-    ]);
-    headers
+    ])
 }
 
 pub async fn get_api_token(ctx: &Context) -> RpcResult<String> {

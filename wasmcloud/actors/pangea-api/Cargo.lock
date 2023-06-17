@@ -1210,15 +1210,12 @@ dependencies = [
  "actor-interfaces",
  "chrono",
  "futures",
- "once_cell",
  "serde",
  "serde_json",
- "tokio",
  "wasmbus-rpc",
  "wasmcloud-interface-httpclient",
  "wasmcloud-interface-keyvalue",
  "wasmcloud-interface-logging",
- "wasmcloud-interface-messaging",
 ]
 
 [[package]]
@@ -2524,21 +2521,6 @@ dependencies = [
  "async-trait",
  "cfg-if",
  "futures",
- "serde",
- "serde_bytes",
- "serde_json",
- "wasmbus-rpc",
- "weld-codegen",
-]
-
-[[package]]
-name = "wasmcloud-interface-messaging"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bbf5dc545c23ecfe39c2a02e42769e153a52db23fcc3cd77d4527eba452a0c9"
-dependencies = [
- "async-trait",
- "log",
  "serde",
  "serde_bytes",
  "serde_json",

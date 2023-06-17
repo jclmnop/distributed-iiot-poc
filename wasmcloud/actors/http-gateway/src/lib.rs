@@ -1,4 +1,4 @@
-use actor_interfaces::{PangeaApi, PangeaApiSender, SearchParams, SearchResponse, Ui, UiSender, GetAssetResponse};
+use actor_interfaces::{PangeaApi, PangeaApiSender, SearchParams, SearchResponse, ui::{Ui, UiSender, GetAssetResponse}};
 use wasmbus_rpc::actor::prelude::*;
 use wasmcloud_interface_httpserver::{HeaderMap, HttpRequest, HttpResponse, HttpServer, HttpServerReceiver};
 use wasmcloud_interface_logging::{debug, error, info};

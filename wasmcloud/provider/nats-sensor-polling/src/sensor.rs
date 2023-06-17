@@ -64,6 +64,27 @@ mod tests {
     }
 
     #[test]
+    fn test_picow_deserialize() {
+        let sensor_json = r#"
+        {"disconnect_topic": "picow/f3088463-5623-476f-a1b5-ecb49446a443/disconnect", "poll_interval": 60000, "ip_addr": "1.2.3.4", "mac_addr": [40, 205, 193, 3, 226, 159], "id": "f3088463-5623-476f-a1b5-ecb49446a443", "location": "rp-pico-w", "poll_topic": "picow/f3088463-5623-476f-a1b5-ecb49446a443/poll", "alias": "temp_01", "read_topic": "picow/f3088463-5623-476f-a1b5-ecb49446a443/read"}
+        "#;
+
+        let sensor: Sensor = serde_json::from_str(sensor_json).unwrap();
+        assert_eq!(sensor.alias, "temp_01");
+        assert_eq!(
+            sensor.id,
+            Uuid::parse_str("f3088463-5623-476f-a1b5-ecb49446a443").unwrap()
+        );
+        assert_eq!(sensor.poll_interval, 60000);
+        assert_eq!(sensor.poll_topic, "picow/f3088463-5623-476f-a1b5-ecb49446a443/poll");
+        assert_eq!(sensor.read_topic, "picow/f3088463-5623-476f-a1b5-ecb49446a443/read");
+        assert_eq!(sensor.disconnect_topic, "picow/f3088463-5623-476f-a1b5-ecb49446a443/disconnect");
+        assert_eq!(sensor.ip_addr, IpAddr::from([1, 2, 3, 4]));
+        assert_eq!(sensor.mac_addr, MacAddr6::new(40, 205, 193, 3, 226, 159));
+        assert_eq!(sensor.location, "rp-pico-w");
+    }
+
+    #[test]
     fn test_sensor_serialize() {
         let sensor = Sensor {
             alias: "test-sensor".to_string(),

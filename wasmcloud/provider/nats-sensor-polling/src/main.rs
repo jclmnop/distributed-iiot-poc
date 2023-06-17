@@ -421,9 +421,10 @@ impl ProviderHandler for NatsSensorPollingProvider {
                 &actor.client.heartbeat_sub_handles.len(),
                 actor_id,
             );
+            drop(actor);
         }
 
-        debug!("Finished processing delet link for actors [{actor_id}]");
+        debug!("Finished processing delete link for actors [{actor_id}]");
     }
 
     /// Handle shutdown request with any cleanup necessary
@@ -496,22 +497,6 @@ impl Polling for NatsSensorPollingProvider {
         todo!()
     }
 }
-
-// /// Handle Messaging methods
-// #[async_trait]
-// impl Messaging for NatsSensorPollingProvider {
-//     #[instrument(level = "debug", skip(self, msg), fields(subject = %msg.subject, reply_to = ?msg.reply_to, body_len = %msg.body.len()))]
-//     async fn publish(&self, _ctx: &Context, msg: &PubMessage) -> RpcResult<()> {
-//         debug!("Publishing message: {:?}", msg);
-//         Err(RpcError::NotImplemented)
-//     }
-//
-//     #[instrument(level = "debug", skip(self, msg), fields(subject = %msg.subject))]
-//     async fn request(&self, _ctx: &Context, msg: &RequestMessage) -> RpcResult<ReplyMessage> {
-//         debug!("Sending message request: {:?}", msg);
-//         Err(RpcError::NotImplemented)
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
